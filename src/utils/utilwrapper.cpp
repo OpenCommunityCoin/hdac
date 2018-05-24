@@ -2,8 +2,10 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
-#include "multichain/multichain.h"
+#include "hdac/hdac.h"
 #include "crypto/sha256.h"
 #include "structs/base58.h"
 
@@ -47,7 +49,6 @@
 #include "structs/hash.h"
 #include "core/main.h"
 #include "net/net.h"
-#include "custom/custom.h"
 
 #define MC_DCT_SEED_NODE_MAX_SIZE 32
 
@@ -77,8 +78,6 @@ void mc_Params::Parse(int argc, const char* const argv[],int exe_type)
     int i,length;
     ParseParameters(argc,argv);
     mc_ExpandDataDirParam();
-    
-    custom_set_runtime_defaults(exe_type);
     
     m_NumArguments=0;
     length=MC_DCT_SEED_NODE_MAX_SIZE+1;
@@ -204,19 +203,11 @@ const char* mc_State::GetSeedNode()
     seed_node=mc_gState->m_Params->SeedNode();
     if(seed_node == NULL)
     {
-/*        
-        int seed_node_size;
-        seed_node=(char*)mc_gState->m_NetworkParams->GetParam("seednode",&seed_node_size);
-        if(seed_node_size <= 1)
-        {
-            seed_node=NULL;
-        }
- */ 
+      // no IP
     }
     
     return seed_node;
 }
-
 
 const char *mc_Params::Command()
 {
@@ -270,16 +261,16 @@ int64_t mc_Params::HasOption(const char* strArg)
 
 boost::filesystem::path mc_GetDefaultDataDir()
 {
-    // Windows < Vista: C:\Documents and Settings\Username\Application Data\MultiChain
-    // Windows >= Vista: C:\Users\Username\AppData\Roaming\MultiChain
-    // Mac and Unix: ~/.multichain
+    // Windows < Vista: C:\Documents and Settings\Username\Application Data\Hdac
+    // Windows >= Vista: C:\Users\Username\AppData\Roaming\Hdac
+    // Mac and Unix: ~/.hdac
 #ifdef WIN32
     // Windows
     if(mc_gState->m_SessionFlags & MC_SSF_COLD)
     {
-        return GetSpecialFolderPath(CSIDL_APPDATA) / "MultiChainCold";
+        return GetSpecialFolderPath(CSIDL_APPDATA) / "HdacCold";	// HDAC
     }
-    return GetSpecialFolderPath(CSIDL_APPDATA) / "MultiChain";
+    return GetSpecialFolderPath(CSIDL_APPDATA) / "Hdac";	// HDAC
 #else
     // Mac and Unix
     boost::filesystem::path pathRet;
@@ -291,9 +282,9 @@ boost::filesystem::path mc_GetDefaultDataDir()
     
     if(mc_gState->m_SessionFlags & MC_SSF_COLD)
     {
-        return pathRet / ".multichain-cold";        
+        return pathRet / ".hdac-cold";
     }
-    return pathRet / ".multichain";
+    return pathRet / ".hdac";
 #endif
 }
 
@@ -351,7 +342,7 @@ void mc_CheckDataDirInConfFile()
     mc_MapStringString *mapConfig;
     
     mapConfig=new mc_MapStringString;
-    if(mc_ReadGeneralConfigFile(mapConfig,NULL,"multichain",".conf") == 0)
+    if(mc_ReadGeneralConfigFile(mapConfig,NULL,"hdac",".conf") == 0)	// HDAC
     {
         if(mapConfig->Get("datadir") != NULL)
         {
@@ -547,7 +538,7 @@ size_t mc_ReadFileToBuffer(FILE *fHan,char **lpptr)
 
 boost::filesystem::path mc_GetConfigFile(const char *network_name,const char *file_name,const char *extension)
 {
-    string fileName="multichain";
+    string fileName="hdac";	// HDAC
     if(file_name)
     {
         fileName = file_name;
@@ -641,8 +632,6 @@ int mc_ReadConfigFile(
         set<string> setOptions;
         setOptions.insert("*");
 
-//        boost::program_options::detail::config_file_iterator it(streamConfig, setOptions), end;
-//        while(it != end)
         for (boost::program_options::detail::config_file_iterator it(streamConfig, setOptions), end; it != end; ++it)
         {
             // Don't overwrite existing settings so command line settings override bitcoin.conf
@@ -662,15 +651,6 @@ int mc_ReadConfigFile(
             {
                 (*mapMultiSettingsRet)[strKey].push_back(it->value[0]);
             }
-/*            
-            try
-            {
-                ++it;
-            }
-            catch(std::exception &e1) {
-                ++it;
-            }
- */ 
         }
     } catch(std::exception &e) {
         fprintf(stderr,"ERROR: reading configuration file: %s\n", e.what());
@@ -683,7 +663,7 @@ int mc_ReadConfigFile(
 
 int mc_Params::ReadConfig(const char *network_name)
 {
-    mc_ReadConfigFile(mc_GetConfigFile(network_name,"multichain",".conf"),&mapArgs, &mapMultiArgs,"-");    
+    mc_ReadConfigFile(mc_GetConfigFile(network_name,"hdac",".conf"),&mapArgs, &mapMultiArgs,"-");	// HDAC
     return mc_ReadConfigFile(mc_GetConfigFile(NULL,NULL,".conf"),&mapArgs, &mapMultiArgs,"-");    
 }
 
@@ -692,82 +672,15 @@ int mc_ReadGeneralConfigFile(mc_MapStringString *mapConfig,const char *network_n
     return mc_ReadConfigFile(mc_GetConfigFile(network_name,file_name,extension),(std::map<string, string>*)mapConfig->mapObject, NULL,"");
 }
 
-int mc_BuildDescription(int build, char *desc)
-{
-    int v;
-    int c[5];
-    
-    v=build;
-    
-    c[4]=v%100;v/=100;
-    c[3]=v%10 ;v/=10 ;
-    c[2]=v%100;v/=100;
-    c[1]=v%100;v/=100;
-    c[0]=v%100;v/=100;
-    if(c[0] < 1)return MC_ERR_INVALID_PARAMETER_VALUE;
-    sprintf(desc,"%d.%d",c[0],c[1]);
-    if(c[2])
-    {
-        sprintf(desc+strlen(desc),".%d",c[2]);
-    }
-    switch(c[3])
-    {
-        case 1:
-            sprintf(desc+strlen(desc)," alpha ");
-            break;
-        case 2:
-            sprintf(desc+strlen(desc)," beta ");
-            break;
-        case 7:
-            sprintf(desc+strlen(desc)," build ");
-            break;
-        case 9:
-            if(c[4] != 1)return MC_ERR_INVALID_PARAMETER_VALUE;
-            break;
-        default:
-            return MC_ERR_INVALID_PARAMETER_VALUE;
-    }
-    if(c[3] != 9)
-    {
-        sprintf(desc+strlen(desc),"%d",c[4]);        
-    }
-    
-    return MC_ERR_NOERROR;
-}
 
-
-int mc_MultichainParams::SetProtocolGlobals()
+int mc_HdacParams::SetGlobals()
 {
-    if(mc_gState->m_Features->ShortTxIDInTx() == 0)
-    {
-        m_AssetRefSize=MC_AST_ASSET_REF_SIZE;
-    }
-    MCP_ALLOW_ARBITRARY_OUTPUTS=1; 
-    if(mc_gState->m_Features->FixedDestinationExtraction() != 0)
-    {
-        int aao=mc_gState->m_NetworkParams->GetInt64Param("allowarbitraryoutputs");
-        if(aao>=0)
-        {
-            MCP_ALLOW_ARBITRARY_OUTPUTS=aao;
-        }
-    }    
-    if(mc_gState->m_Features->ParameterUpgrades())
-    {
-        MAX_BLOCK_SIGOPS = MAX_BLOCK_SIZE/50;
-        MAX_TX_SIGOPS = MAX_BLOCK_SIGOPS/5;
-    }
-    return MC_ERR_NOERROR;
-}
-
-int mc_MultichainParams::SetGlobals()
-{
-    m_IsProtocolMultiChain=1;
     void *ptr=GetParam("chainprotocol",NULL);
     if(ptr)
     {
-        if(strcmp((char*)ptr,"multichain"))
+        if(strcmp((char*)ptr,"hdac"))	// HDAC
         {
-            m_IsProtocolMultiChain=0;
+          // Empty...
         }
     }
     m_ProtocolVersion=ProtocolVersion();
@@ -776,7 +689,7 @@ int mc_MultichainParams::SetGlobals()
     MAX_OP_RETURN_RELAY=(unsigned int)GetInt64Param("maxstdopreturnsize");    
     MAX_OP_RETURN_RELAY=GetArg("-datacarriersize", MAX_OP_RETURN_RELAY);
     MAX_BLOCK_SIZE=(unsigned int)GetInt64Param("maximumblocksize");    
-    DEFAULT_BLOCK_MAX_SIZE=MAX_BLOCK_SIZE;    
+    DEFAULT_BLOCK_MAX_SIZE=MAX_BLOCK_SIZE;
     while(MAX_BLOCK_SIZE>MAX_BLOCKFILE_SIZE)
     {
         MAX_BLOCKFILE_SIZE *= 2;
@@ -785,25 +698,23 @@ int mc_MultichainParams::SetGlobals()
     {
         MAX_SIZE *= 2;
     }
-    MIN_BLOCKS_BETWEEN_UPGRADES=(unsigned int)GetInt64Param("timingupgrademingap"); 
     MAX_STANDARD_TX_SIZE=(unsigned int)GetInt64Param("maxstdtxsize");    
     MAX_SCRIPT_ELEMENT_SIZE=(unsigned int)GetInt64Param("maxstdelementsize");
     COINBASE_MATURITY=(int)GetInt64Param("rewardspendabledelay");    
     COIN=GetInt64Param("nativecurrencymultiple");        
     CENT=COIN/100;    
-    MAX_MONEY=GetInt64Param("maximumperoutput");    
+    MAX_MONEY=GetInt64Param("maximumperoutput");
+
+    //2018-04-04. should be changed params.dat, but set here. 
+    MAX_MONEY=1000000000000000000;
+    
     if((mc_gState->m_NetworkParams->GetInt64Param("initialblockreward") == 0) && (mc_gState->m_NetworkParams->GetInt64Param("firstblockreward") <= 0))
     {
         COIN=0;    
         CENT=0;
         MAX_MONEY=0;
     }
-/*    
-    if(mc_gState->m_Features->ShortTxIDInTx() == 0)
-    {
-        m_AssetRefSize=MC_AST_ASSET_REF_SIZE;
-    }
-*/    
+        
     MCP_MAX_STD_OP_RETURN_COUNT=mc_gState->m_NetworkParams->GetInt64Param("maxstdopreturnscount");
     MCP_INITIAL_BLOCK_REWARD=mc_gState->m_NetworkParams->GetInt64Param("initialblockreward");
     MCP_FIRST_BLOCK_REWARD=mc_gState->m_NetworkParams->GetInt64Param("firstblockreward");
@@ -813,11 +724,10 @@ int mc_MultichainParams::SetGlobals()
     MCP_ANYONE_CAN_CONNECT=mc_gState->m_NetworkParams->GetInt64Param("anyonecanconnect");
     MCP_ANYONE_CAN_SEND=mc_gState->m_NetworkParams->GetInt64Param("anyonecansend");
     MCP_ANYONE_CAN_RECEIVE=mc_gState->m_NetworkParams->GetInt64Param("anyonecanreceive");
+    MCP_ANYONE_CAN_CREATE=mc_gState->m_NetworkParams->GetInt64Param("anyonecancreate");
     MCP_ANYONE_CAN_ACTIVATE=mc_gState->m_NetworkParams->GetInt64Param("anyonecanactivate");
     MCP_MINIMUM_PER_OUTPUT=mc_gState->m_NetworkParams->GetInt64Param("minimumperoutput");
-/*    
     MCP_ALLOW_ARBITRARY_OUTPUTS=1; 
-    if(mc_gState->m_Features->FixedDestinationExtraction() != 0)
     {
         int aao=mc_gState->m_NetworkParams->GetInt64Param("allowarbitraryoutputs");
         if(aao>=0)
@@ -825,7 +735,6 @@ int mc_MultichainParams::SetGlobals()
             MCP_ALLOW_ARBITRARY_OUTPUTS=aao;
         }
     }
- */ 
     MCP_ALLOW_MULTISIG_OUTPUTS=mc_gState->m_NetworkParams->GetInt64Param("allowmultisigoutputs");
     MCP_ALLOW_P2SH_OUTPUTS=mc_gState->m_NetworkParams->GetInt64Param("allowp2shoutputs");
     MCP_WITH_NATIVE_CURRENCY=0;
@@ -836,7 +745,7 @@ int mc_MultichainParams::SetGlobals()
     MCP_STD_OP_DROP_COUNT=mc_gState->m_NetworkParams->GetInt64Param("maxstdopdropscount");
     MCP_STD_OP_DROP_SIZE=mc_gState->m_NetworkParams->GetInt64Param("maxstdopdropsize");
     MCP_ANYONE_CAN_RECEIVE_EMPTY=mc_gState->m_NetworkParams->GetInt64Param("anyonecanreceiveempty");
-    return SetProtocolGlobals();
+    return MC_ERR_NOERROR;
 }
 
 
@@ -878,13 +787,13 @@ void mc_SHA256::GetHash(unsigned char *hash)
     }        
 }
 
-int mc_MultichainParams::Import(const char *name,const char *source_address)
+int mc_HdacParams::Import(const char *name,const char *source_address)
 {
     
     return MC_ERR_NOERROR;
 }
 
-std::string MultichainServerAddress()
+std::string HdacServerAddress()
 {
     string result=string(mc_gState->m_NetworkParams->Name());
     unsigned char *ptr;

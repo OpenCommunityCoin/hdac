@@ -27,100 +27,6 @@ const unsigned char* GetAddressIDPtr(const CTxDestination& address)
     return aptr;
 }
 
-bool mc_ExtractOutputAssetQuantities(mc_Buffer *assets,string& reason,bool with_followons)
-{
-    int err;
-    uint32_t script_type=MC_SCR_ASSET_SCRIPT_TYPE_TRANSFER;
-    if(with_followons)
-    {        
-        script_type |= MC_SCR_ASSET_SCRIPT_TYPE_FOLLOWON;
-    }
-    for (int e = 0; e < mc_gState->m_TmpScript->GetNumElements(); e++)
-    {
-        mc_gState->m_TmpScript->SetElement(e);
-        err=mc_gState->m_TmpScript->GetAssetQuantities(assets,script_type);
-        if((err != MC_ERR_NOERROR) && (err != MC_ERR_WRONG_SCRIPT))
-        {
-            reason="Asset transfer script rejected - error in output transfer script";
-            return false;                                
-        }
-    }
-
-    return true;
-}
-
-bool mc_VerifyAssetPermissions(mc_Buffer *assets, vector<CTxDestination> addressRets, int required_permissions, uint32_t permission, string& reason)
-{
-    mc_EntityDetails entity;
-    int asset_count=-1;
-    
-    for(int i=0;i<assets->GetCount();i++)
-    {
-        if(mc_gState->m_Assets->FindEntityByFullRef(&entity,assets->GetRow(i)))
-        {
-            if( entity.Permissions() & (MC_PTP_SEND | MC_PTP_RECEIVE) )
-            {
-                if( (addressRets.size() != 1) || (required_permissions > 1) )
-                {
-                    reason="Sending restricted asset to non-standard and multisig addresses not allowed";
-                    return false;                                                    
-                }
-                if(assets->GetCount() > 1)
-                {
-                    if(asset_count < 0)
-                    {
-                        asset_count=0;
-                        for(int j=0;j<assets->GetCount();j++)
-                        {
-                            if(mc_GetABRefType(assets->GetRow(j)) != MC_AST_ASSET_REF_TYPE_SPECIAL)
-                            {
-                                asset_count++;
-                            }                            
-                        }
-                    }
-                    if(asset_count > 1)
-                    {
-                        if(permission == MC_PTP_SEND)
-                        {
-                            reason="One of multiple assets in input has per-asset permissions";
-                        }
-                        if(permission == MC_PTP_RECEIVE)
-                        {
-                            reason="One of multiple assets in output has per-asset permissions";
-                        }
-                        return false;                                
-                    }
-                }
-                if(entity.Permissions() & permission)
-                {
-                    int found=required_permissions;
-                    for(int j=0;j<(int)addressRets.size();j++)
-                    {
-                        if(mc_gState->m_Permissions->GetPermission(entity.GetTxID(),GetAddressIDPtr(addressRets[j]),permission))
-                        {
-                            found--;
-                        }
-                    }
-                    if(found > 0)
-                    {
-                        if(permission == MC_PTP_SEND)
-                        {
-                            reason="One of the inputs doesn't have per-asset send permission";
-                        }
-                        if(permission == MC_PTP_RECEIVE)
-                        {
-                            reason="One of the outputs doesn't have per-asset receive permission";
-                        }                    
-                        return false;                                
-                    }
-                }
-            }
-        }        
-    }
-    
-    return true;
-}
-
 
 /* 
  * Parses txout script into asset-quantity buffer
@@ -128,7 +34,7 @@ bool mc_VerifyAssetPermissions(mc_Buffer *assets, vector<CTxDestination> address
  */
 
 
-bool ParseMultichainTxOutToBuffer(uint256 hash,                                 // IN, tx hash, if !=0 genesis asset reference is retrieved from asset DB
+bool ParseHdacTxOutToBuffer(uint256 hash,                                 // IN, tx hash, if !=0 genesis asset reference is retrieved from asset DB
                                   const CTxOut& txout,                          // IN, tx to be parsed
                                   mc_Buffer *amounts,                           // OUT, output amount buffer
                                   mc_Script *lpScript,                          // TMP, temporary script object
@@ -162,7 +68,7 @@ bool ParseMultichainTxOutToBuffer(uint256 hash,                                 
         expected_required=*required;
         *required=0;
     }
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain())
+
     {
         disallow_if_assets_found=0;
         const CScript& script1 = txout.scriptPubKey;        
@@ -170,7 +76,7 @@ bool ParseMultichainTxOutToBuffer(uint256 hash,                                 
 
         lpScript->Clear();
         lpScript->SetScript((unsigned char*)(&pc1[0]),(size_t)(script1.end()-pc1),MC_SCR_TYPE_SCRIPTPUBKEY);
-        if(allowed)                                                             // Checking permissions this output address have
+        if(allowed) // Checking permissions this output address have
         {
             CTxDestination addressRet;        
 
@@ -242,42 +148,28 @@ bool ParseMultichainTxOutToBuffer(uint256 hash,                                 
                         disallow_if_assets_found=0;
                         *allowed -= MC_PTP_SEND;                        
                     }
-                    
-                    if((mc_gState->m_Features->ShortTxIDInTx() == 0) && (entity.IsUnconfirmedGenesis() != 0) )
+                         
+                    memcpy(buf,entity.GetFullRef(),MC_AST_ASSET_FULLREF_SIZE);
+                    row=amounts->Seek(buf);
+                    last=0;
+                    if(row >= 0)
                     {
-                        if(required)                                            // Unconfirmed genesis in protocol < 10007, cannot be spent
-                        {
-                            memset(buf,0,MC_AST_ASSET_FULLREF_SIZE);
-                            mc_SetABRefType(buf,MC_AST_ASSET_REF_TYPE_GENESIS);
-                            mc_SetABQuantity(buf,total);
-                            amounts->Add(buf);        
-                            *required |= MC_PTP_ISSUE;
-                        }
+                        last=mc_GetABQuantity(amounts->GetRow(row));
+                        total+=last;
+                        mc_SetABQuantity(amounts->GetRow(row),total);
                     }
-                    else            
+                    else
                     {
-                        memcpy(buf,entity.GetFullRef(),MC_AST_ASSET_FULLREF_SIZE);
-                        row=amounts->Seek(buf);
-                        last=0;
-                        if(row >= 0)
+                        mc_SetABQuantity(buf,total);
+                        amounts->Add(buf);                        
+                    }
+                    
+                    if(required)
+                    {
+                        if(expected_required == 0)                          
                         {
-                            last=mc_GetABQuantity(amounts->GetRow(row));
-                            total+=last;
-                            mc_SetABQuantity(amounts->GetRow(row),total);
-                        }
-                        else
-                        {
-                            mc_SetABQuantity(buf,total);
-                            amounts->Add(buf);                        
-                        }
-                        
-                        if(required)
-                        {
-                            if(expected_required == 0)                          
-                            {
-                                *required |= MC_PTP_ISSUE;
-                            }                            
-                        }
+                            *required |= MC_PTP_ISSUE;
+                        }                            
                     }
                 }                
                 else                                                            // Asset not found, no error but the caller should check required field
@@ -453,11 +345,7 @@ bool ParseMultichainTxOutToBuffer(uint256 hash,                                 
                                 }
                                 else
                                 {
-                                    if(mc_gState->m_Features->OpDropDetailsScripts() == 0)// May be Follow-on details from v10007
-                                    {
-                                        strFailReason="Invalid publish script, not stream";
-                                        return false;                                                                    
-                                    }
+                                  // nothing...
                                 }                            
                             }                        
                             else
@@ -512,13 +400,10 @@ bool ParseMultichainTxOutToBuffer(uint256 hash,                                 
                         *required |= admin_type;
                         if( type & (MC_PTP_ADMIN | MC_PTP_MINE) )
                         {
-                            if(mc_gState->m_Features->CachedInputScript())
+                            if(mc_gState->m_NetworkParams->GetInt64Param("supportminerprecheck"))                                
                             {
-                                if(mc_gState->m_NetworkParams->GetInt64Param("supportminerprecheck"))                                
-                                {
-                                    *required |= MC_PTP_CACHED_SCRIPT_REQUIRED;
-                                }        
-                            }
+                                *required |= MC_PTP_CACHED_SCRIPT_REQUIRED;
+                            }        
                         }
                         
                         if(hash == 0)
@@ -654,47 +539,12 @@ bool ParseMultichainTxOutToBuffer(uint256 hash,                                 
             }            
         }
         
-    }    
-    else                                                                        // Protocol != multichain
-    {
-        if(allowed)
-        {
-            *allowed=MC_PTP_SEND;
-        }    
-        if(required)
-        {
-            *required |= MC_PTP_SEND;
-            if(expected_required & MC_PTP_RECEIVE)                              // Checking for dust
-            {
-                if (txout.IsDust(::minRelayTxFee))
-                {
-                    strFailReason="Transaction output value too small";
-                    return false;                                
-                }            
-            }
-            memset(buf,0,MC_AST_ASSET_FULLREF_BUF_SIZE);
-            type=MC_PTP_SEND;
-            mc_PutLE(buf+4,&type,4);
-            mc_SetABRefType(buf,MC_AST_ASSET_REF_TYPE_SPECIAL);
-            quantity=txout.nValue;
-            row=amounts->Seek(buf);
-            if(row >= 0)
-            {
-                quantity+=mc_GetABQuantity(amounts->GetRow(row));
-                mc_SetABQuantity(amounts->GetRow(row),quantity);
-            }
-            else
-            {
-                mc_SetABQuantity(buf,quantity);
-                amounts->Add(buf);                            
-            }            
-        }        
     }
 
     return true;
 }
 
-bool ParseMultichainTxOutToBuffer(uint256 hash,                                 // IN, tx hash, if !=0 genesis asset reference is retrieved from asset DB
+bool ParseHdacTxOutToBuffer(uint256 hash,                                 // IN, tx hash, if !=0 genesis asset reference is retrieved from asset DB
                                   const CTxOut& txout,                          // IN, tx to be parsed
                                   mc_Buffer *amounts,                           // OUT, output amount buffer
                                   mc_Script *lpScript,                          // TMP, temporary script object
@@ -702,7 +552,7 @@ bool ParseMultichainTxOutToBuffer(uint256 hash,                                 
                                   int *required,                                // IN/OUT/NULL returns permission required by this output, adds special rows to output buffer according to input value   
                                   string& strFailReason)                        // OUT error
 {
-    return ParseMultichainTxOutToBuffer(hash,txout,amounts,lpScript,allowed,required,NULL,strFailReason);
+    return ParseHdacTxOutToBuffer(hash,txout,amounts,lpScript,allowed,required,NULL,strFailReason);
 }
 
 bool CreateAssetBalanceList(const CTxOut& txout,mc_Buffer *amounts,mc_Script *lpScript,int *required)
@@ -722,7 +572,6 @@ bool CreateAssetBalanceList(const CTxOut& txout,mc_Buffer *amounts,mc_Script *lp
         *required=0;
     }
     
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain())
     {
         const CScript& script1 = txout.scriptPubKey;        
         CScript::const_iterator pc1 = script1.begin();
@@ -821,13 +670,10 @@ bool CreateAssetBalanceList(const CTxOut& txout,mc_Buffer *amounts,mc_Script *lp
 bool FindFollowOnsInScript(const CScript& script1,mc_Buffer *amounts,mc_Script *lpScript)
 {
     int err;
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain())
-    {
-        CScript::const_iterator pc1 = script1.begin();
+    CScript::const_iterator pc1 = script1.begin();
 
-        lpScript->Clear();
-        lpScript->SetScript((unsigned char*)(&pc1[0]),(size_t)(script1.end()-pc1),MC_SCR_TYPE_SCRIPTPUBKEY);
-    }    
+    lpScript->Clear();
+    lpScript->SetScript((unsigned char*)(&pc1[0]),(size_t)(script1.end()-pc1),MC_SCR_TYPE_SCRIPTPUBKEY);
     
     for (int e = 0; e < lpScript->GetNumElements(); e++)                        // Parsing asset quantities
     {
@@ -873,15 +719,11 @@ void LogAssetTxOut(string message,uint256 hash,int index,unsigned char* assetref
 
 bool AddressCanReceive(CTxDestination address)
 {
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain() == 0)
-    {
-        return true;
-    }
     CKeyID *lpKeyID=boost::get<CKeyID> (&address);
     CScriptID *lpScriptID=boost::get<CScriptID> (&address);
     if((lpKeyID == NULL) && (lpScriptID == NULL))
     {
-        LogPrintf("mchn: Invalid address");
+        LogPrintf("hdac: Invalid address");
         return false;                
     }
     unsigned char* ptr=NULL;
@@ -899,7 +741,7 @@ bool AddressCanReceive(CTxDestination address)
     
     if(mc_gState->m_Permissions->CanReceive(NULL,ptr) == 0)
     {
-        LogPrintf("mchn: Destination address doesn't have receive permission: %s\n",
+        LogPrintf("hdac: Destination address doesn't have receive permission: %s\n",
                 addressPrint.ToString().c_str());
         return false;
     }

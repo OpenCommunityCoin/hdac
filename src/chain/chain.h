@@ -236,6 +236,21 @@ public:
         return *phashBlock;
     }
 
+    /* HDAC START */
+	uint256 GetPoWBlockHash() const
+	{
+		CBlockHeader block;
+		block.nVersion        = nVersion;
+		if (pprev)
+			 block.hashPrevBlock = pprev->GetBlockHash();
+		block.hashMerkleRoot  = hashMerkleRoot;
+		block.nTime           = nTime;
+		block.nBits           = nBits;
+		block.nNonce          = nNonce;
+		return block.GetPoWHash(nHeight);
+	}
+	/* HDAC END */
+
     int64_t GetBlockTime() const
     {
         return (int64_t)nTime;
@@ -362,6 +377,19 @@ public:
         return block.GetHash();
     }
 
+    /* HDAC START */
+    uint256 GetPoWBlockHash() const
+	{
+		CBlockHeader block;
+		block.nVersion        = nVersion;
+		block.hashPrevBlock   = hashPrev;
+		block.hashMerkleRoot  = hashMerkleRoot;
+		block.nTime           = nTime;
+		block.nBits           = nBits;
+		block.nNonce          = nNonce;
+		return block.GetPoWHash(nHeight);
+	}
+    /* HDAC END */
 
     std::string ToString() const
     {

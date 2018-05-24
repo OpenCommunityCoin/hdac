@@ -1,9 +1,10 @@
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #include "multichain/multichain.h"
 #include "chainparams/globals.h"
-#include "utils/util.h"
 
 int main(int argc, char* argv[])
 {
@@ -25,7 +26,8 @@ int main(int argc, char* argv[])
     
     mc_ExpandDataDirParam();
     
-    printf("\nMultiChain %s Utilities (latest protocol %d)\n\n",mc_BuildDescription(mc_gState->GetNumericVersion()).c_str(),mc_gState->GetProtocolVersion());
+//    printf("\nMultiChain %s Utilities (protocol %d)\n\n",mc_gState->GetVersion(),mc_gState->GetProtocolVersion());
+    printf("\nHdac %s Utilities (latest protocol %d))\n\n",mc_gState->GetVersion(),mc_gState->GetProtocolVersion());	// HDAC
              
     err=MC_ERR_OPERATION_NOT_SUPPORTED;
      
@@ -43,14 +45,13 @@ int main(int argc, char* argv[])
                 if(mc_gState->m_Params->m_NumArguments>2)
                 {                    
                     v=atoi(mc_gState->m_Params->m_Arguments[2]);
-//                    if( (v>=mc_gState->m_Features->MinProtocolVersion()) && (v<=version) )
-                    if(mc_gState->IsSupported(v))
+                    if( (v>=mc_gState->m_Features->MinProtocolVersion()) && (v<=version) )
                     {
                         version=v;                        
                     }
                     else
                     {
-                        fprintf(stderr,"ERROR: Invalid value for protocol version. Valid range: %s\n",mc_SupportedProtocols().c_str());   
+                        fprintf(stderr,"ERROR: Invalid value for protocol version. Valid range: %d - %d\n",mc_gState->m_Features->MinProtocolVersion(), mc_gState->GetProtocolVersion());   
                         err=MC_ERR_INVALID_PARAMETER_VALUE;
                     }
                 }
@@ -77,8 +78,10 @@ int main(int argc, char* argv[])
                 { 
                     printf("Blockchain parameter set was successfully generated.\n");
                     mc_GetFullFileName(mc_gState->m_Params->m_Arguments[1],"params", ".dat",MC_FOM_RELATIVE_TO_DATADIR,fileName);
-                    printf("You can edit it in %s before running multichaind for the first time.\n\n",fileName);
-                    printf("To generate blockchain please run \"multichaind %s -daemon\".\n",params->Name());
+//                    printf("You can edit it in %s before running multichaind for the first time.\n\n",fileName);
+                    printf("You can edit it in %s before running hdacd for the first time.\n\n",fileName);	// HDAC
+//                    printf("To generate blockchain please run \"multichaind %s -daemon\".\n",params->Name());
+                    printf("To generate blockchain please run \"hdacd %s -daemon\".\n",params->Name());	// HDAC
                 }                
                 else
                 {
@@ -139,8 +142,10 @@ int main(int argc, char* argv[])
                     
                     printf("Blockchain parameter set was successfully cloned.\n");
                     mc_GetFullFileName(mc_gState->m_Params->m_Arguments[2],"params", ".dat",MC_FOM_RELATIVE_TO_DATADIR,fileName);
-                    printf("You can edit it in %s before running multichaind for the first time.\n\n",fileName);
-                    printf("To generate blockchain please run \"multichaind %s -daemon\".\n",params->Name());
+//                    printf("You can edit it in %s before running multichaind for the first time.\n\n",fileName);
+                    printf("You can edit it in %s before running hdacd for the first time.\n\n",fileName);	// HDAC
+//                    printf("To generate blockchain please run \"multichaind %s -daemon\".\n",params->Name());
+                    printf("To generate blockchain please run \"hdacd %s -daemon\".\n",params->Name());	// HDAC
                 }                
                 else
                 {
@@ -191,10 +196,15 @@ int main(int argc, char* argv[])
     {
         mc_GetFullFileName("<blockchain-name>","params", ".dat",MC_FOM_RELATIVE_TO_DATADIR,fileName);
         printf("Usage:\n");
+/*
         printf("  multichain-util create <blockchain-name>  ( <protocol-version> = %d ) [options]        Creates new multichain configuration file %s with default parameters\n",
                 mc_gState->GetProtocolVersion(),fileName);
+*/
+        printf("  hdac-util create <blockchain-name>  ( <protocol-version> = %d ) [options]        Creates new hdac configuration file %s with default parameters\n",
+                mc_gState->GetProtocolVersion(),fileName);
         mc_GetFullFileName("<new-blockchain-name>","params", ".dat",MC_FOM_RELATIVE_TO_DATADIR,fileName);
-        printf("  multichain-util clone <old-blockchain-name> <new-blockchain-name> [options]               Creates new multichain configuration file %s copying parameters\n",fileName);
+//        printf("  multichain-util clone <old-blockchain-name> <new-blockchain-name> [options]               Creates new multichain configuration file %s copying parameters\n",fileName);
+        printf("  hdac-util clone <old-blockchain-name> <new-blockchain-name> [options]               Creates new hdac configuration file %s copying parameters\n",fileName);	// HDAC
         
         isSetDataDirArg=mc_GetDataDirArg(DataDirArg);
         if(isSetDataDirArg)

@@ -3,6 +3,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #include "structs/amount.h"
 #include "chainparams/chainparams.h"
@@ -26,6 +28,7 @@
 #include "json/json_spirit_utils.h"
 #include "json/json_spirit_value.h"
 #include "rpcwallet.h"
+#include "miner/miner.h"
 
 using namespace json_spirit;
 using namespace std;
@@ -171,37 +174,26 @@ Value setgenerate(const Array& params, bool fHelp)
         while (nHeight < nHeightEnd)
         {
             int canMine=0;
-            CBlockIndex *pindexPrev;
-            auto_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithDefaultKey(pwalletMain,&canMine,lpMinerAddresses,&pindexPrev));
-//            auto_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithKey(reservekey));
+            CBlockIndex *pindexPrev;	// multichain 1.0.2.1
+            auto_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithDefaultKey(pwalletMain,&canMine,lpMinerAddresses,&pindexPrev));	// multichain 1.0.2.1
             if (!pblocktemplate.get())
             {
-                if(mc_gState->m_NetworkParams->IsProtocolMultichain())
+                if(nGenerate > 1)
                 {
-                    if(nGenerate > 1)
-                    {
-                        throw JSONRPCError(RPC_INSUFFICIENT_PERMISSIONS, "Couldn't find enough wallet addresses with mining permission to mine given number of blocks");
-                    }
-                    else
-                    {
-                        throw JSONRPCError(RPC_INSUFFICIENT_PERMISSIONS, "Couldn't find wallet address with mining permission");                        
-                    }
+                    throw JSONRPCError(RPC_INSUFFICIENT_PERMISSIONS, "Couldn't find enough wallet addresses with mining permission to mine given number of blocks");
                 }
                 else
                 {
-                    throw JSONRPCError(RPC_INTERNAL_ERROR, "Wallet keypool empty");
+                    throw JSONRPCError(RPC_INSUFFICIENT_PERMISSIONS, "Couldn't find wallet address with mining permission");                        
                 }
             }
                 
             CBlock *pblock = &pblocktemplate->block;
             {
                 LOCK(cs_main);
-/* MCHN START */                
-                IncrementExtraNonce(pblock, pindexPrev, nExtraNonce,pwalletMain);
-//                IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
-/* MCHN START */                
+                IncrementExtraNonce(pblock, pindexPrev, nExtraNonce,pwalletMain);	// multichain 1.0.2.1
             }
-            while (!CheckProofOfWork(pblock->GetHash(), pblock->nBits, true)) {
+            while (!CheckProofOfWork(pblock->GetPoWHash(), pblock->nBits, true)) {
                 // Yes, there is a chance every nonce could fail to satisfy the -regtest
                 // target -- 1 in 2^(2^32). That ain't gonna happen.
                 ++pblock->nNonce;
@@ -236,6 +228,31 @@ Value gethashespersec(const Array& params, bool fHelp)
  */ 
     return (int64_t)dHashesPerSec;
 }
+
+/* HDAC START */
+extern int BW_CUR_WZ;
+Value getblockwindowsize_org(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error("Help message not found\n");
+
+    return (int64_t)BW_CUR_WZ;
+}
+/* HDAC END */
+
+/* HDAC START */
+Value getblockwindowsize(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error("Help message not found\n");
+
+    //return (int64_t)BW_CUR_WZ;
+    Object obj;
+    obj.push_back(Pair("blocks",           (int)chainActive.Height()));
+    obj.push_back(Pair("blockwindowsize",     getblockwindowsize_org(params, false)));
+    return obj;
+}
+/* HDAC END */
 #endif
 
 
@@ -261,6 +278,7 @@ Value getmininginfo(const Array& params, bool fHelp)
 #ifdef ENABLE_WALLET
     obj.push_back(Pair("generate",         getgenerate(params, false)));
     obj.push_back(Pair("hashespersec",     gethashespersec(params, false)));
+    obj.push_back(Pair("blockwindowsize",     getblockwindowsize_org(params, false)));	// HDAC
 #endif
     return obj;
 }
@@ -272,17 +290,12 @@ Value prioritisetransaction(const Array& params, bool fHelp)
     if (fHelp || params.size() != 3)
         throw runtime_error("Help message not found\n");
 
-    throw JSONRPCError(RPC_NOT_SUPPORTED, "Transaction prioritization is not supported in this version of MultiChain");        
-    
-/* MCHN START */    
-//    uint256 hash = ParseHashStr(params[0].get_str(), "txid");
+    uint256 hash = ParseHashStr(params[0].get_str(), "txid");
 
-//    CAmount nAmount = params[2].get_int64();
+    CAmount nAmount = params[2].get_int64();
 
-//    mempool.PrioritiseTransaction(hash, params[0].get_str(), params[1].get_real(), nAmount);
-//    return true;
-    return false;
-/* MCHN END */    
+    mempool.PrioritiseTransaction(hash, params[0].get_str(), 0.0, nAmount);
+    return true;    
 }
 
 
@@ -305,13 +318,12 @@ static Value BIP22ValidationResult(const CValidationState& state)
     return "valid?";
 }
 
+
 Value getblocktemplate(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 1)
         throw runtime_error("Help message not found\n");
 
-    throw JSONRPCError(RPC_NOT_SUPPORTED, "getblocktemplate is not supported in this version of MultiChain");        
-    
     std::string strMode = "template";
     Value lpval = Value::null;
     if (params.size() > 0)
@@ -363,10 +375,10 @@ Value getblocktemplate(const Array& params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid mode");
 
     if (vNodes.empty())
-        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "MultiChain is not connected!");
+        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "Hdac is not connected!");	// HDAC
 
     if (IsInitialBlockDownload())
-        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "MultiChain is downloading blocks...");
+        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "HDac	 is downloading blocks...");	// HDAC
 
     static unsigned int nTransactionsUpdatedLast;
 
@@ -568,13 +580,29 @@ Value submitblock(const Array& params, bool fHelp)
             if (pindex->nStatus & BLOCK_FAILED_MASK)
                 return "duplicate-invalid";
             // Otherwise, we might only have the header - process the block before returning
+            
+            fBlockPresent=true;
         }
-        fBlockPresent=true;
+        
     }
-
     CValidationState state;
     submitblock_StateCatcher sc(block.GetHash());
     RegisterValidationInterface(&sc);
+
+    {
+      CPubKey pubkey;            
+
+      pubkey = pwalletMain->vchDefaultKey;
+      
+      block.vSigner[0]=pubkey.size();
+      memcpy(block.vSigner+1,pubkey.begin(),block.vSigner[0]);
+            
+      if(!CreateBlockSignature(&block,BLOCKSIGHASH_HEADER,pwalletMain))
+      {
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "CreateBlockSignature failure !!");
+	  }
+	}
+	
     bool fAccepted = ProcessNewBlock(state, NULL, &block);
     UnregisterValidationInterface(&sc);
     

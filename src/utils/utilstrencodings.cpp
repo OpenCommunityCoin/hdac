@@ -84,7 +84,7 @@ vector<unsigned char> ParseHex(const char* psz)
     }
     return vch;
 }
-/* MCHN START */
+
 vector<unsigned char> ParseHex(const char* psz,bool &fIsHex)
 {
     // convert hex dump to vector
@@ -120,8 +120,6 @@ vector<unsigned char> ParseHex(const char* psz,bool &fIsHex)
     }
     return vch;
 }
-
-/* MCHN END */
 
 vector<unsigned char> ParseHex(const string& str)
 {

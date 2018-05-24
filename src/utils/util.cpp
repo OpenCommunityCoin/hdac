@@ -3,7 +3,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
-
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 #if defined(HAVE_CONFIG_H)
 #include "config/bitcoin-config.h"
 #endif
@@ -17,7 +18,7 @@
 #include "utils/utilstrencodings.h"
 #include "utils/utiltime.h"
 
-#include "multichain/multichain.h"                                              // MCHN
+#include "hdac/hdac.h"
 
 #include <stdarg.h>
 
@@ -184,7 +185,6 @@ static void DebugPrintInit()
     mutexDebugLog = new boost::mutex();
 }
 
-/* MCHN START */
 
 void DebugPrintClose()
 {
@@ -195,7 +195,6 @@ void DebugPrintClose()
     }
 }
 
-/* MCHN END */
 
 bool LogAcceptCategory(const char* category)
 {
@@ -256,7 +255,6 @@ int LogPrintStr(const std::string &str)
         if (fLogTimestamps && fStartedNewLine)
 /* MCHN PRMF */            
             ret += fprintf(fileout, "%s", DateTimeStrFormat("%Y-%m-%d %H:%M:%S", GetTime()).c_str());
-//            ret += fprintf(fileout, "%s ", DateTimeStrFormat("%Y-%m-%d %H:%M:%S", GetTime()).c_str());
         if (fLogTimestamps && fStartedNewLine)
         {
             if (fLogTimeMillis)
@@ -268,7 +266,7 @@ int LogPrintStr(const std::string &str)
                 ret += fprintf(fileout, " ");            
             }
         }
-/* MCHN END */            
+
         if (!str.empty() && str[str.size()-1] == '\n')
             fStartedNewLine = true;
         else
@@ -316,13 +314,7 @@ void ParseParameters(int argc, const char* const argv[])
             str = "-" + str.substr(1);
 #endif
 
-/* MCHN START */                            
-// Ignoring arguments not starting with "-". original bitcoin code discard everything after that                
-
-/*        
-        if (str[0] != '-')
-            break;
-*/
+        // Ignoring arguments not starting with "-". original bitcoin code discard everything after that                
         if (str[0] == '-')
         {
             // Interpret --foo as -foo.
@@ -333,7 +325,6 @@ void ParseParameters(int argc, const char* const argv[])
             mapMultiArgs[str].push_back(strValue);
         }
         
-/* MCHN END */        
         
         
     }
@@ -411,10 +402,8 @@ void PrintExceptionContinue(std::exception* pex, const char* pszThread)
     strMiscWarning = message;
 }
 
-/* MCHN START */
-static boost::filesystem::path pathCachedMultiChain;
+static boost::filesystem::path pathCachedHdac;
 static CCriticalSection csPathCached;
-/* MCHN END */
 
 boost::filesystem::path GetDefaultDataDir()
 {
@@ -423,17 +412,15 @@ boost::filesystem::path GetDefaultDataDir()
     // Windows >= Vista: C:\Users\Username\AppData\Roaming\Bitcoin
     // Mac: ~/Library/Application Support/Bitcoin
     // Unix: ~/.bitcoin
-/* MCHN START */
     LOCK(csPathCached);
     
-    pathCachedMultiChain=fs::path(string(mc_gState->m_Params->DataDir()));
-    fs::path &path =pathCachedMultiChain;
+    pathCachedHdac=fs::path(string(mc_gState->m_Params->DataDir()));
+    fs::path &path =pathCachedHdac;
     return path;
 //    fs::path &path = fNetSpecific ? pathCachedNetSpecific : pathCached;
-/* MCHN END */
 #ifdef WIN32
     // Windows
-    return GetSpecialFolderPath(CSIDL_APPDATA) / "MultiChain";
+    return GetSpecialFolderPath(CSIDL_APPDATA) / "Hdac";	// DHAC
 #else
     fs::path pathRet;
     char* pszHome = getenv("HOME");
@@ -445,10 +432,10 @@ boost::filesystem::path GetDefaultDataDir()
     // Mac
     pathRet /= "Library/Application Support";
     TryCreateDirectory(pathRet);
-    return pathRet / "MultiChain";
+    return pathRet / "Hdac";	// HDAC
 #else
     // Unix
-    return pathRet / ".multichain";
+    return pathRet / ".hdac";	// HDAC
 #endif
 #endif
 }
@@ -464,17 +451,17 @@ const boost::filesystem::path &GetDataDir(bool fNetSpecific)
     
     LOCK(csPathCached);
 
-/* MCHN START */
-    fs::path &path =pathCachedMultiChain;
+    fs::path &path =pathCachedHdac;
     if (!path.empty())
         return path;
     path=fs::path(string(mc_gState->m_Params->DataDir()));
-    return pathCachedMultiChain;
-//    pathCachedMultiChain=fs::path(string(mc_gState->m_Params->DataDir()));
-//    fs::path &path =pathCachedMultiChain;
-//    return path;
-//    fs::path &path = fNetSpecific ? pathCachedNetSpecific : pathCached;
-/* MCHN END */
+    return pathCachedHdac;
+    
+    //pathCachedHdac=fs::path(string(mc_gState->m_Params->DataDir()));
+    //fs::path &path =pathCachedHdac;
+    //return path;
+    //fs::path &path = fNetSpecific ? pathCachedNetSpecific : pathCached;
+
     // This can be called during exceptions by LogPrintf(), so we cache the
     // value so we don't have to do memory allocations after that.
     if (!path.empty())
@@ -541,7 +528,7 @@ void ReadConfigFile(map<string, string>& mapSettingsRet,
 #ifndef WIN32
 boost::filesystem::path GetPidFile()
 {
-    boost::filesystem::path pathPidFile(GetArg("-pid", "multichain.pid"));
+    boost::filesystem::path pathPidFile(GetArg("-pid", "hdac.pid"));	// HDAC
     if (!pathPidFile.is_complete()) pathPidFile = GetDataDir() / pathPidFile;
     return pathPidFile;
 }
@@ -686,14 +673,12 @@ void ShrinkDebugFile(const char* FileName)
     // Scroll debug.log if it's getting too big
     boost::filesystem::path pathLog = GetDataDir() / string(FileName);
     FILE* file = fopen(pathLog.string().c_str(), "r");
-/* MCHN START */    
     size_t bytes_written;
     uint64_t shrink_size=GetArg("-shrinkdebugfilesize",200000);
     if(shrink_size > 67108864)
     {
         shrink_size = 67108864;
     }
-/* MCHN END */        
     if (file && boost::filesystem::file_size(pathLog) > 5 * shrink_size)// 10 * 1000000)
     {
         // Restart the file with some of the end
@@ -852,76 +837,4 @@ void SetThreadPriority(int nPriority)
     setpriority(PRIO_PROCESS, 0, nPriority);
 #endif // PRIO_THREAD
 #endif // WIN32
-}
-
-
-std::string mc_SupportedProtocols()
-{
-    std::string protocol_list;
-    int protocol_min,protocol_max,protocol_next,this_build,next_build,out_it;
-    
-    protocol_list="";
-    this_build=mc_gState->GetNumericVersion();
-    protocol_next=mc_gState->MinProtocolVersion();
-    protocol_min=0;
-    protocol_max=-1;
-    next_build=-mc_gState->VersionInfo(protocol_next);
-    
-    while(next_build <= this_build)
-    {
-        out_it=0;
-        if(next_build > 0)
-        {
-            if(next_build == this_build)
-            {
-                if(protocol_min == 0)
-                {
-                    protocol_min=protocol_next;                    
-                }
-                protocol_max=protocol_next;
-            }
-            else
-            {
-                out_it=1;
-            }
-            protocol_next++;
-        }
-        else
-        {
-            out_it=1;   
-            protocol_next=-next_build;
-        }
-        next_build=-mc_gState->VersionInfo(protocol_next);
-        if(next_build > this_build)
-        {
-            out_it=1;
-        }
-        if(out_it)
-        {
-            if(protocol_list.size())
-            {
-                protocol_list += ", ";
-            }
-            if(protocol_max > protocol_min)
-            {
-                protocol_list += strprintf("%d-%d",protocol_min,protocol_max);
-            }
-            else
-            {
-                protocol_list += strprintf("%d",protocol_min);                
-            }
-            protocol_min=0;
-            protocol_max=-1;
-        }
-    }
-    
-    
-    return protocol_list;    
-}
-
-std::string mc_BuildDescription(int build)
-{
-    char build_desc[32];
-    mc_BuildDescription(build,build_desc);
-    return std::string(build_desc);
 }

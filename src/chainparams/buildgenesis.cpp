@@ -1,7 +1,9 @@
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
-#include "multichain/multichain.h"
+#include "hdac/hdac.h"
 
 #include "chainparams/chainparams.h"
 #include "utils/util.h"
@@ -36,27 +38,28 @@ int mc_GenerateConfFiles(const char *network_name)
 {
     FILE *fileHan;
     char rpcpwd[64];
+
+    //const char * strDefaultConfFileName = "hdac";	// HDAC hdac.conf
     
-    fileHan=mc_OpenFile(NULL,"multichain",".conf","r",MC_FOM_RELATIVE_TO_DATADIR | MC_FOM_CREATE_DIR);
+    fileHan=mc_OpenFile(NULL,"hdac",".conf","r",MC_FOM_RELATIVE_TO_DATADIR | MC_FOM_CREATE_DIR);	// HDAC
     if(fileHan == NULL)
     {
-        fileHan=mc_OpenFile(NULL,"multichain",".conf","w",MC_FOM_RELATIVE_TO_DATADIR);
+        fileHan=mc_OpenFile(NULL,"hdac",".conf","w",MC_FOM_RELATIVE_TO_DATADIR);	// HDAC
     }
     if(fileHan)
     {
         mc_CloseFile(fileHan);
     }
     
-    fileHan=mc_OpenFile(network_name,"multichain",".conf","r",MC_FOM_RELATIVE_TO_DATADIR | MC_FOM_CREATE_DIR);
+    fileHan=mc_OpenFile(network_name,"hdac",".conf","r",MC_FOM_RELATIVE_TO_DATADIR | MC_FOM_CREATE_DIR);	// HDAC
     if(fileHan == NULL)
     {
-        fileHan=mc_OpenFile(network_name,"multichain",".conf","w",MC_FOM_RELATIVE_TO_DATADIR);
+        fileHan=mc_OpenFile(network_name,"hdac",".conf","w",MC_FOM_RELATIVE_TO_DATADIR);	// HDAC
         if(fileHan)
         {
-            fprintf(fileHan,"rpcuser=multichainrpc\n");
+            fprintf(fileHan,"rpcuser=hdacrpc\n");	// HDAC
             mc_RandomEncodedBase58String(rpcpwd,32);
             fprintf(fileHan,"rpcpassword=%s\n",rpcpwd);
-//            mc_CloseFile(fileHan);
         }       
     }
     if(fileHan)
@@ -69,7 +72,7 @@ int mc_GenerateConfFiles(const char *network_name)
 
 
 
-int mc_MultichainParams::Build(const unsigned char* pubkey, int pubkey_size) 
+int mc_HdacParams::Build(const unsigned char* pubkey, int pubkey_size) 
 {
     if(m_Status == MC_PRM_STATUS_VALID)
     {
@@ -125,14 +128,7 @@ int mc_MultichainParams::Build(const unsigned char* pubkey, int pubkey_size)
     root_stream_name_size=0;
     root_stream_name=NULL;
     
-    if(mc_gState->m_Features->Streams())
-    {
-        root_stream_name=(unsigned char *)GetParam("rootstreamname",&root_stream_name_size);        
-        if(IsProtocolMultichain() == 0)
-        {
-            root_stream_name_size=0;
-        }    
-    }
+    root_stream_name=(unsigned char *)GetParam("rootstreamname",&root_stream_name_size);        
     
     while(look_for_genesis)
     {                
@@ -141,7 +137,7 @@ int mc_MultichainParams::Build(const unsigned char* pubkey, int pubkey_size)
         
         txNew.vin.resize(1);
         
-        if(root_stream_name_size > ( (mc_gState->m_Features->FixedIn10008() != 0) ? 1 : 0 ))
+        if(root_stream_name_size > 1)
         {
             txNew.vout.resize(2);                        
         }
@@ -155,29 +151,14 @@ int mc_MultichainParams::Build(const unsigned char* pubkey, int pubkey_size)
                 
         txNew.vout[0].nValue = GetInt64Param("initialblockreward");// * COIN;
         
-        if(mc_gState->m_NetworkParams->IsProtocolMultichain())
-        {
-            txNew.vout[0].scriptPubKey = CScript() << OP_DUP << OP_HASH160 << vector<unsigned char>(pubkey_hash, pubkey_hash + 20) << OP_EQUALVERIFY << OP_CHECKSIG;
-        }
-        else
-        {
-            txNew.vout[0].scriptPubKey = CScript() << vector<unsigned char>(pubkey, pubkey + pubkey_size) << OP_CHECKSIG;       
-        }
+        txNew.vout[0].scriptPubKey = CScript() << OP_DUP << OP_HASH160 << vector<unsigned char>(pubkey_hash, pubkey_hash + 20) << OP_EQUALVERIFY << OP_CHECKSIG;
         
-        if(IsProtocolMultichain())
         {
             mc_Script *lpScript;
             
             lpScript=new mc_Script;
             
-            if(mc_gState->m_Features->Streams())
-            {
-                lpScript->SetPermission(MC_PTP_GLOBAL_ALL,0,0xffffffff,timestamp);
-            }
-            else
-            {
-                lpScript->SetPermission(MC_PTP_ALL,0,0xffffffff,timestamp);                
-            }
+            lpScript->SetPermission(MC_PTP_GLOBAL_ALL,0,0xffffffff,timestamp);
             
             elem = lpScript->GetData(0,&elem_size);
             txNew.vout[0].scriptPubKey << vector<unsigned char>(elem, elem + elem_size) << OP_DROP;
@@ -185,7 +166,7 @@ int mc_MultichainParams::Build(const unsigned char* pubkey, int pubkey_size)
             delete lpScript;            
         }
 
-        if(root_stream_name_size > ( (mc_gState->m_Features->FixedIn10008() != 0) ? 1 : 0 ))
+        if(root_stream_name_size > 1)
         {        
             txNew.vout[1].nValue=0;
             lpDetails=new mc_Script;
@@ -196,12 +177,9 @@ int mc_MultichainParams::Build(const unsigned char* pubkey, int pubkey_size)
                 lpDetails->SetSpecialParamValue(MC_ENT_SPRM_ANYONE_CAN_WRITE,&b,1);        
             }
             
-            if(mc_gState->m_Features->FixedIn10007())
+            if( (root_stream_name_size > 1) && (root_stream_name[root_stream_name_size - 1] == 0x00) )
             {
-                if( (root_stream_name_size > 1) && (root_stream_name[root_stream_name_size - 1] == 0x00) )
-                {
-                    root_stream_name_size--;
-                }
+                root_stream_name_size--;
             }
             
             lpDetails->SetSpecialParamValue(MC_ENT_SPRM_NAME,root_stream_name,root_stream_name_size);
@@ -212,44 +190,11 @@ int mc_MultichainParams::Build(const unsigned char* pubkey, int pubkey_size)
     
             lpDetailsScript=new mc_Script;
             
-            if(mc_gState->m_Features->OpDropDetailsScripts())
-            {
-                lpDetailsScript->SetNewEntityType(MC_ENT_TYPE_STREAM,0,script,bytes);
+            lpDetailsScript->SetNewEntityType(MC_ENT_TYPE_STREAM,0,script,bytes);
 
-                elem = lpDetailsScript->GetData(0,&elem_size);
-                txNew.vout[1].scriptPubKey=CScript();
-                txNew.vout[1].scriptPubKey << vector<unsigned char>(elem, elem + elem_size) << OP_DROP << OP_RETURN;                        
-            }
-            else
-            {                
-                lpDetailsScript->SetNewEntityType(MC_ENT_TYPE_STREAM);
-
-                lpDetailsScript->SetGeneralDetails(script,bytes);
-                txNew.vout[1].scriptPubKey=CScript();
-
-                for(int e=0;e<lpDetailsScript->GetNumElements();e++)
-                {
-                    elem = lpDetailsScript->GetData(e,&elem_size);
-                    if(e == (lpDetailsScript->GetNumElements() - 1) )
-                    {
-                        if(elem_size > 0)
-                        {
-                            txNew.vout[1].scriptPubKey << OP_RETURN << vector<unsigned char>(elem, elem + elem_size);
-                        }
-                        else
-                        {
-                            txNew.vout[1].scriptPubKey << OP_RETURN;
-                        }
-                    }
-                    else
-                    {
-                        if(elem_size > 0)
-                        {
-                            txNew.vout[1].scriptPubKey << vector<unsigned char>(elem, elem + elem_size) << OP_DROP;
-                        }                
-                    }
-                }
-            }
+            elem = lpDetailsScript->GetData(0,&elem_size);
+            txNew.vout[1].scriptPubKey=CScript();
+            txNew.vout[1].scriptPubKey << vector<unsigned char>(elem, elem + elem_size) << OP_DROP << OP_RETURN;                        
             
             delete lpDetails;
             delete lpDetailsScript;
@@ -310,14 +255,6 @@ int mc_MultichainParams::Build(const unsigned char* pubkey, int pubkey_size)
     {
         return err;
     }    
-    if(mc_gState->m_Features->Streams() == 0)
-    {
-        err=SetParam("genesisopreturnscript","[not set]",9);                        // Some value required to make parameter set valid, but valid value should start from OP_RETURN
-        if(err)
-        {
-            return err;
-        }    
-    }
     
     mc_HexToBin(hash,genesis.GetHash().ToString().c_str(),32);
     err=SetParam("genesishash",(const char*)hash,32);

@@ -3,6 +3,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #ifndef BITCOIN_TXDB_H
 #define BITCOIN_TXDB_H
@@ -19,9 +21,9 @@ class CCoins;
 class uint256;
 
 //! -dbcache default (MiB)
-static const int64_t nDefaultDbCache = 100;
+static const int64_t nDefaultDbCache = 450;
 //! max. -dbcache in (MiB)
-static const int64_t nMaxDbCache = sizeof(void*) > 4 ? 4096 : 1024;
+static const int64_t nMaxDbCache = sizeof(void*) > 4 ? 16384 : 1024;
 //! min. -dbcache in (MiB)
 static const int64_t nMinDbCache = 4;
 

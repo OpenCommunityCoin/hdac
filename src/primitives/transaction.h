@@ -3,6 +3,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #ifndef BITCOIN_PRIMITIVES_TRANSACTION_H
 #define BITCOIN_PRIMITIVES_TRANSACTION_H
@@ -12,8 +14,7 @@
 #include "utils/serialize.h"
 #include "structs/uint256.h"
 
-//#include "multichain/multichain.h"
-#include "chainparams/state.h"
+#include "chainparams/hdac/state.h"
 
 /** An outpoint - a combination of a transaction hash and an index n into its vout */
 class COutPoint
@@ -138,21 +139,16 @@ public:
 
     uint256 GetHash() const;
 
-/* MCHN START */        
     CAmount GetDustThreshold(const CFeeRate &minRelayTxFee) const
     {
-        if(mc_gState->m_NetworkParams->IsProtocolMultichain())
+        int64_t minOutput=MCP_MINIMUM_PER_OUTPUT;
+        if(minOutput >= 0)
         {
-            int64_t minOutput=MCP_MINIMUM_PER_OUTPUT;
-            if(minOutput >= 0)
-            {
-                return minOutput;                
-            }
-        }            
+            return minOutput;
+        }
         size_t nSize = GetSerializeSize(SER_DISK,0)+148u;
         return 3*minRelayTxFee.GetFee(nSize);        
     }
-/* MCHN END */        
     
     bool IsDust(CFeeRate minRelayTxFee) const
     {
@@ -164,21 +160,16 @@ public:
         // need a CTxIn of at least 148 bytes to spend:
         // so dust is a txout less than 546 satoshis 
         // with default minRelayTxFee.
-/* MCHN START */        
-/*        
-        if(mc_gState->m_NetworkParams->IsProtocolMultichain())
+      /*        
+        int64_t minOutput=MCP_MINIMUM_PER_OUTPUT;
+        if(minOutput >= 0)
         {
-            int64_t minOutput=MCP_MINIMUM_PER_OUTPUT;
-            if(minOutput >= 0)
-            {
-                return (nValue < minOutput);                
-            }
-        }            
+            return (nValue < minOutput);                
+        }
         size_t nSize = GetSerializeSize(SER_DISK,0)+148u;
         return (nValue < 3*minRelayTxFee.GetFee(nSize));
-*/        
+      */        
         return (nValue < GetDustThreshold(minRelayTxFee));
-/* MCHN END */        
     }
 
     friend bool operator==(const CTxOut& a, const CTxOut& b)

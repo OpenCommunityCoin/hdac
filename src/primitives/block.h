@@ -8,14 +8,17 @@
 #define BITCOIN_PRIMITIVES_BLOCK_H
 
 #include "primitives/transaction.h"
+#include "crypto/scrypt.h"			// HDAC
+#include "crypto/Lyra2RE/Lyra2RE.h"	// HDAC
 #include "utils/serialize.h"
 #include "structs/uint256.h"
 
 /** The maximum allowed size for a serialized block, in bytes (network rule) */
 //static const unsigned int MAX_BLOCK_SIZE = 1000000;
 extern unsigned int MAX_BLOCK_SIZE;                                             // MCHN global
+extern unsigned int MAX_BLOCK_SIGOPS;
+extern unsigned int MAX_TX_SIGOPS;
 
-/* MCHN START */
 /** Block signature hash types/flags */
 enum
 {
@@ -31,7 +34,6 @@ enum
     MERKLETREE_NO_COINBASE_OP_RETURN = 1,
     MERKLETREE_UNKNOWN = 0xff,
 };
-/* MCHN END */
 
 
 /** Nodes collect new transactions into a block, hash them into a hash tree,
@@ -88,6 +90,8 @@ public:
 
     uint256 GetHash() const;
 
+    uint256 GetPoWHash(int nHeight=-1, bool bLyra2REv2 = true) const;	// HDAC
+
     int64_t GetBlockTime() const
     {
         return (int64_t)nTime;
@@ -104,11 +108,9 @@ public:
     // memory only
     mutable std::vector<uint256> vMerkleTree;
 
-/* MCHN START */
     uint32_t nSigHashType;
     uint32_t nMerkleTreeType;
     unsigned char vSigner[256];
-/* MCHN END */
     
     CBlock()
     {
@@ -134,10 +136,8 @@ public:
         CBlockHeader::SetNull();
         vtx.clear();
         vMerkleTree.clear();
-/* MCHN START */
         nSigHashType=BLOCKSIGHASH_UNKNOWN;
         nMerkleTreeType=MERKLETREE_UNKNOWN;
-/* MCHN END */
     }
 
     CBlockHeader GetBlockHeader() const

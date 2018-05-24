@@ -41,7 +41,7 @@ void CDBEnv::EnvShutdown()
 {
     if (!fDbEnvInit)
         return;
-/* MCHN START */
+
     FILE* fHan;
     
     dbenv.get_errfile(&fHan);
@@ -51,7 +51,6 @@ void CDBEnv::EnvShutdown()
         dbenv.set_errfile(NULL);
     }
     
-/* MCHN END */    
     fDbEnvInit = false;
     int ret = dbenv.close(0);
     if (ret != 0)

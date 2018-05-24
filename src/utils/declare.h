@@ -1,8 +1,8 @@
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
 
-#ifndef MULTICHAIN_DECLARE_H
-#define	MULTICHAIN_DECLARE_H
+#ifndef __DECLARE_H_
+#define	__DECLARE_H_
 
 #include "utils/define.h"
 
@@ -229,7 +229,6 @@ double mc_TimeNowAsDouble();
 int mc_GetFullFileName(const char *network_name,const char *filename, const char *extension,int options,char *buf);
 int64_t mc_GetVarInt(const unsigned char *buf,int max_size,int64_t default_value,int* shift);
 int mc_PutVarInt(unsigned char *buf,int max_size,int64_t value);
-int mc_BuildDescription(int build, char *desc);
 
 void mc_GetCompoundHash160(void *result,const void  *hash1,const void  *hash2);
 int mc_SetIPv4ServerAddress(const char* host);
@@ -243,7 +242,6 @@ void mc_SetDataDirArg(char *buf);
 void mc_ExpandDataDirParam();
 void mc_CheckDataDirInConfFile();
 void mc_AdjustStartAndCount(int *count,int *start,int size);
-void* custom_get_blockchain_default(const char *param,int* size,void *param_in);
 
 
 int mc_TestScenario(char* scenario_file);
@@ -285,5 +283,5 @@ void __US_FlushFile(int FileHan);
 #endif
 
 
-#endif	/* MULTICHAIN_DECLARE_H */
+#endif	/* __DECLARE_H_ */
 

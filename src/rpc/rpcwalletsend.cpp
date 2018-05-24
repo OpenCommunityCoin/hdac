@@ -73,7 +73,7 @@ Value createrawsendfrom(const Array& params, bool fHelp)
     {
         BOOST_FOREACH(const Value& data, params[2].get_array()) 
         {
-            CScript scriptOpReturn=ParseRawMetadata(data,MC_DATA_API_PARAM_TYPE_ALL-MC_DATA_API_PARAM_TYPE_CIS,&entity,&found_entity);
+            CScript scriptOpReturn=ParseRawMetadata(data,0x01FF,&entity,&found_entity);
             if(found_entity.GetEntityType() == MC_ENT_TYPE_STREAM)
             {
                 FindAddressesWithPublishPermission(fromaddresses,&found_entity);
@@ -104,11 +104,11 @@ Value createrawsendfrom(const Array& params, bool fHelp)
     {
         flags |= MC_CSF_ALLOWED_COINS_ARE_MINE;
     }
-    
+
     if(vecSend.size() == 0)
     {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Either addresses object or data array should not be empty");                                                        
-    }
+    	throw JSONRPCError(RPC_INVALID_PARAMETER, "Either addresses object or data array should not be empty");
+	}
     
     EnsureWalletIsUnlocked();
     {
@@ -301,7 +301,7 @@ Value sendwithmetadatafrom(const Array& params, bool fHelp)
     vector<CTxDestination> addresses;    
     addresses.push_back(address.Get());
         
-    mc_Script *lpScript=mc_gState->m_TmpBuffers->m_RpcScript3;    
+    mc_Script *lpScript=mc_gState->m_TmpBuffers->m_RpcScript3;
     lpScript->Clear();
     
     if (params[2].type() == obj_type)
@@ -329,7 +329,7 @@ Value sendwithmetadatafrom(const Array& params, bool fHelp)
     }
     
     mc_EntityDetails found_entity;
-    CScript scriptOpReturn=ParseRawMetadata(params[3],MC_DATA_API_PARAM_TYPE_SIMPLE,NULL,&found_entity);
+    CScript scriptOpReturn=ParseRawMetadata(params[3],0x0002,NULL,&found_entity);
     
     vector<CTxDestination> fromaddresses;        
     set<CTxDestination> thisFromAddresses;
@@ -613,7 +613,7 @@ Value preparelockunspentfrom(const json_spirit::Array& params, bool fHelp)
     
     mc_Script *lpScript=mc_gState->m_TmpBuffers->m_RpcScript3;
     lpScript->Clear();
-    
+
     CAmount nAmount=0;
     uint256 offer_hash;
     bool lock_it=true;
@@ -685,7 +685,7 @@ Value preparelockunspentfrom(const json_spirit::Array& params, bool fHelp)
                 if(memcmp((&pc1[0]),(&pc0[0]),script_size) == 0)
                 {
                     LOCK(pwalletMain->cs_wallet);
-                    if(fDebug)LogPrint("mchn","mchn: New lockunspent (%s,%d), Offer hash: %s\n",wtx.GetHash().GetHex().c_str(),j,offer_hash.GetHex().c_str());
+                    if(fDebug)LogPrint("hdac","hdac: New lockunspent (%s,%d), Offer hash: %s\n",wtx.GetHash().GetHex().c_str(),j,offer_hash.GetHex().c_str());
                     vout=j;                    
                 }
             }
@@ -726,7 +726,7 @@ Value preparelockunspent(const json_spirit::Array& params, bool fHelp)
     
     mc_Script *lpScript=mc_gState->m_TmpBuffers->m_RpcScript3;
     lpScript->Clear();
-    
+
     CAmount nAmount=0;
     uint256 offer_hash;
     bool lock_it=true;
@@ -800,9 +800,9 @@ Value preparelockunspent(const json_spirit::Array& params, bool fHelp)
                 if(memcmp((&pc1[0]),(&pc0[0]),script_size) == 0)
                 {
                     LOCK(pwalletMain->cs_wallet);
-                    if(fDebug)LogPrint("mchn","mchn: New lockunspent (%s,%d), Offer hash: %s\n",wtx.GetHash().GetHex().c_str(),j,offer_hash.GetHex().c_str());
+                    if(fDebug)LogPrint("hdac","hdac: New lockunspent (%s,%d), Offer hash: %s\n",wtx.GetHash().GetHex().c_str(),j,offer_hash.GetHex().c_str());
                     vout=j;                    
-//                    pwalletMain->mapExchanges.insert(make_pair(COutPoint(wtx.GetHash(),j),CExchangeStatus(offer_hash,0,mc_TimeNowAsUInt())));                    
+                    //pwalletMain->mapExchanges.insert(make_pair(COutPoint(wtx.GetHash(),j),CExchangeStatus(offer_hash,0,mc_TimeNowAsUInt())));                    
                 }
             }
         }        
@@ -863,13 +863,6 @@ Value sendassetfrom(const Array& params, bool fHelp)
         mc_EntityDetails entity;
         ParseEntityIdentifier(params[2],&entity, MC_ENT_TYPE_ASSET);           
         memcpy(buf,entity.GetFullRef(),MC_AST_ASSET_FULLREF_SIZE);
-        if(mc_gState->m_Features->ShortTxIDInTx() == 0)
-        {
-            if(entity.IsUnconfirmedGenesis())
-            {
-                throw JSONRPCError(RPC_UNCONFIRMED_ENTITY, "Unconfirmed asset: "+params[2].get_str());            
-            }
-        }
         multiple=entity.GetAssetMultiple();
     }
     else
@@ -994,13 +987,6 @@ Value sendassettoaddress(const Array& params, bool fHelp)
         mc_EntityDetails entity;
         ParseEntityIdentifier(params[1],&entity, MC_ENT_TYPE_ASSET);           
         memcpy(buf,entity.GetFullRef(),MC_AST_ASSET_FULLREF_SIZE);
-        if(mc_gState->m_Features->ShortTxIDInTx() == 0)
-        {
-            if(entity.IsUnconfirmedGenesis())
-            {
-                throw JSONRPCError(RPC_UNCONFIRMED_ENTITY, "Unconfirmed asset: "+params[1].get_str());            
-            }
-        }
         multiple=entity.GetAssetMultiple();
     }
     else

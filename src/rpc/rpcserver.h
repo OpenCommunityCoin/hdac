@@ -3,6 +3,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #ifndef BITCOIN_RPCSERVER_H
 #define BITCOIN_RPCSERVER_H
@@ -19,6 +21,8 @@
 #include "json/json_spirit_reader_template.h"
 #include "json/json_spirit_utils.h"
 #include "json/json_spirit_writer_template.h"
+
+static const int DEFAULT_RPC_HTTP_SERVER_TIMEOUT=30; // HDAC - jhkim
 
 class CBlockIndex;
 class CNetAddr;
@@ -119,7 +123,6 @@ public:
 
 extern CRPCTable tableRPC;
 
-/* MCHN START */
 extern std::map<std::string, std::string> mapHelpStrings;
 extern std::map<std::string, int> mapLogParamCounts;
 extern std::set<std::string> setAllowedWhenWaitingForUpgrade;
@@ -131,8 +134,6 @@ void mc_InitRPCHelpMap();
 std::string mc_RPCHelpString(std::string strMethod);
 void mc_InitRPCList(std::vector<CRPCCommand>& vStaticRPCCommands,std::vector<CRPCCommand>& vStaticRPCWalletReadCommands);
 
-
-/* MCHN END */
 
 /**
  * Utilities: convert hex-encoded Values
@@ -162,6 +163,7 @@ extern json_spirit::Value stop(const json_spirit::Array& params, bool fHelp);
 
 extern json_spirit::Value getconnectioncount(const json_spirit::Array& params, bool fHelp); // in rpcnet.cpp
 extern json_spirit::Value getpeerinfo(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getchainblockheight(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value ping(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value addnode(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getaddednodeinfo(const json_spirit::Array& params, bool fHelp);
@@ -191,7 +193,6 @@ extern json_spirit::Value setaccount(const json_spirit::Array& params, bool fHel
 extern json_spirit::Value getaccount(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getaddressesbyaccount(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value sendtoaddress(const json_spirit::Array& params, bool fHelp);
-/* MCHN START */    
 extern json_spirit::Value createkeypairs(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getaddresses(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value combineunspent(const json_spirit::Array& params, bool fHelp);
@@ -251,7 +252,6 @@ extern json_spirit::Value unsubscribe(const json_spirit::Array& params, bool fHe
 extern json_spirit::Value listassettransactions(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getassettransaction(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getstreamitem(const json_spirit::Array& params, bool fHelp);
-extern json_spirit::Value liststreamtxitems(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value liststreamitems(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value liststreamkeyitems(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value liststreampublisheritems(const json_spirit::Array& params, bool fHelp);
@@ -260,11 +260,7 @@ extern json_spirit::Value liststreampublishers(const json_spirit::Array& params,
 extern json_spirit::Value gettxoutdata(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value listblocks(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value liststreamblockitems(const json_spirit::Array& params, bool fHelp);
-extern json_spirit::Value getstreamkeysummary(const json_spirit::Array& params, bool fHelp);
-extern json_spirit::Value getstreampublishersummary(const json_spirit::Array& params, bool fHelp);
 
-extern json_spirit::Value purehelpitem(const json_spirit::Array& params, bool fHelp);
-/* MCHN END */    
 extern json_spirit::Value signmessage(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value verifymessage(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getreceivedbyaddress(const json_spirit::Array& params, bool fHelp);
@@ -321,6 +317,7 @@ extern json_spirit::Value verifychain(const json_spirit::Array& params, bool fHe
 extern json_spirit::Value getchaintips(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value invalidateblock(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value reconsiderblock(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getblockwindowsize(const json_spirit::Array& params, bool fHelp);	// HDAC
 
 // in rest.cpp
 extern bool HTTPReq_REST(AcceptedConnection *conn,

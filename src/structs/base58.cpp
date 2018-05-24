@@ -2,6 +2,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #include "structs/base58.h"
 
@@ -16,7 +18,7 @@
 #include <boost/variant/apply_visitor.hpp>
 #include <boost/variant/static_visitor.hpp>
 
-#include "multichain/multichain.h"
+#include "hdac/hdac.h"
 
 
 /** All alphanumeric characters except for "0", "I", "O", and "l" */
@@ -119,13 +121,10 @@ std::string EncodeBase58Check(const std::vector<unsigned char>& vchIn)
     std::vector<unsigned char> vch(vchIn);
     uint256 hash = Hash(vch.begin(), vch.end());
     
-/* MCHN START */
     int32_t checksum=(int32_t)mc_GetLE(&hash,4);
     checksum ^= (int32_t)mc_gState->m_NetworkParams->GetInt64Param("addresschecksumvalue");
     vch.insert(vch.end(), (unsigned char*)&checksum, (unsigned char*)&checksum + 4);
-//    vch.insert(vch.end(), (unsigned char*)&hash, (unsigned char*)&hash + 4);
-/* MCHN END */    
-//    mc_DumpSize("TS",&vch[0],vch.size(),vch.size());
+
     return EncodeBase58(vch);
 }
 
@@ -139,16 +138,13 @@ bool DecodeBase58Check(const char* psz, std::vector<unsigned char>& vchRet)
     // re-calculate the checksum, insure it matches the included 4-byte checksum
     uint256 hash = Hash(vchRet.begin(), vchRet.end() - 4);
     
-/* MCHN START */
     int32_t checksum=(int32_t)mc_GetLE(&hash,4);
     checksum ^= (int32_t)mc_gState->m_NetworkParams->GetInt64Param("addresschecksumvalue");
     
     if (memcmp((unsigned char*)&checksum, &vchRet.end()[-4], 4) != 0) {
-//    if (memcmp(&hash, &vchRet.end()[-4], 4) != 0) {
         vchRet.clear();
         return false;
     }
-/* MCHN END */    
     vchRet.resize(vchRet.size() - 4);
     return true;
 }
@@ -187,15 +183,6 @@ bool CBase58Data::SetString(const char* psz, unsigned int nVersionBytes)
         return false;
     }
     
-/* MCHN START */    
-    
-/*    
-    vchVersion.assign(vchTemp.begin(), vchTemp.begin() + nVersionBytes);
-    vchData.resize(vchTemp.size() - nVersionBytes);
-    if (!vchData.empty())
-        memcpy(&vchData[0], &vchTemp[nVersionBytes], vchData.size());
-*/
-
     int shift=(vchTemp.size() - nVersionBytes) / nVersionBytes;
     vchVersion.resize(nVersionBytes);
     vchData.resize(vchTemp.size() - nVersionBytes);
@@ -210,26 +197,17 @@ bool CBase58Data::SetString(const char* psz, unsigned int nVersionBytes)
         memcpy(&vchData[i*shift],&vchTemp[i*(shift+1)+1],size);
     }
     
-    
-/* MCHN END */    
-//    OPENSSL_cleanse(&vchTemp[0], vchData.size());
     OPENSSL_cleanse(&vchTemp[0], vchTemp.size());
     return true;
 }
 
 bool CBase58Data::SetString(const std::string& str)
 {
-    return SetString(str.c_str(),Params().Base58Prefix(CChainParams::PUBKEY_ADDRESS).size());// MCHN, 1 (default) in original code
+    return SetString(str.c_str(),Params().Base58Prefix(CChainParams::PUBKEY_ADDRESS).size());
 }
 
 std::string CBase58Data::ToString() const
-{
-/* MCHN START */    
-/*
-    std::vector<unsigned char> vch = vchVersion;    
-    vch.insert(vch.end(), vchData.begin(), vchData.end());
- */
-    
+{    
     std::vector<unsigned char> vch;    
     int nVersionBytes=vchVersion.size();
 
@@ -245,9 +223,6 @@ std::string CBase58Data::ToString() const
         }
         memcpy(&vch[i*(shift+1)+1],&vchData[i*shift],size);
     }
-//        mc_DumpSize("TS",&vchVersion[0],vchVersion.size(),vchVersion.size());
-    
-/* MCHN END */    
     return EncodeBase58Check(vch);
 }
 
@@ -262,90 +237,81 @@ std::string BurnAddress(const std::vector<unsigned char>& vchVersion)
     char res[100];    
     
     int shift=nDataBytes / nVersionBytes;
-    CKeyID kBurn;
+    vch.resize(nDataBytes + nVersionBytes + nHashBytes);
     int p;
+    for(int i=2;i<nDataBytes + nVersionBytes + nHashBytes;i++)
+    {
+        vch[i]=0x00;
+    }
+    vch[0]=vchVersion[0];
+    vch[1]=0x80;
+
     
-    if(*(uint160*)(mc_gState->m_BurnAddress) == 0)
+    strcpy(res,EncodeBase58(vch).c_str());
+    memset(res+1,'X',strlen(res)-1);
+    DecodeBase58(res,vch);
+    while((int)vch.size() > nDataBytes + nVersionBytes + nHashBytes)
     {
-        vch.resize(nDataBytes + nVersionBytes + nHashBytes);
-        for(int i=2;i<nDataBytes + nVersionBytes + nHashBytes;i++)
-        {
-            vch[i]=0x00;
-        }
-        vch[0]=vchVersion[0];
-        vch[1]=0x80;
-
-
-        strcpy(res,EncodeBase58(vch).c_str());
-        memset(res+1,'X',strlen(res)-1);
+        res[strlen(res)-1]=0x00;
         DecodeBase58(res,vch);
-        while((int)vch.size() > nDataBytes + nVersionBytes + nHashBytes)
-        {
-            res[strlen(res)-1]=0x00;
-            DecodeBase58(res,vch);
-        }
-
-        p=0;
-        while(p<nDataBytes + nVersionBytes)
-        {
-            if( (p % (shift+1)) == 0)
-            {
-                if(vch[p] != vchVersion[p / (shift+1)])
-                {
-                    memset(&vch[p+2],0x00,vch.size()-p-2);
-                    vch[p] = vchVersion[p / (shift+1)];
-                    vch[p+1] = 0x80;
-                    strcpy(test,EncodeBase58(vch).c_str());
-                    if(strlen(test) != strlen(res))
-                    {
-                        if(strlen(test) > strlen(res))
-                        {
-                            res[strlen(res)+1]=0x00;
-                            res[strlen(res)]='X';
-                        }                        
-                        if(strlen(test) < strlen(res))
-                        {
-                            res[strlen(res)-1]=0x00;
-                        }                        
-                    }
-                    int j=0;
-                    while( (j<(int)strlen(res)) && (res[j] == test[j]) )
-                    {
-                        j++;
-                    }
-                    int k=0;
-                    while( (k<3) && (j<(int)strlen(res)) && ((vch[p] != vchVersion[p / (shift+1)])  || (k ==0)))
-                    {
-                        res[j]=test[j];
-                        DecodeBase58(res,vch);
-                        k++;
-                        j++;
-                    }                
-                }
-            }
-            p++;
-        }
-
-    //    strcpy(test,EncodeBase58(vch).c_str());
-
-
-        for(int i=0;i<(int)nVersionBytes;i++)
-        {
-            int size=shift;
-            if(i == (int)(nVersionBytes-1))
-            {
-                size=nDataBytes-i*shift;
-            }
-            memcpy(data+i*shift,&vch[i*(shift+1)+1],size);
-        }
-
-        memcpy(&kBurn,data,nDataBytes);
-        memcpy(mc_gState->m_BurnAddress,data,nDataBytes);
     }
-    else
+
+    p=0;
+    while(p<nDataBytes + nVersionBytes)
     {
-        memcpy(&kBurn,mc_gState->m_BurnAddress,nDataBytes);        
+        if( (p % (shift+1)) == 0)
+        {
+            if(vch[p] != vchVersion[p / (shift+1)])
+            {
+                memset(&vch[p+2],0x00,vch.size()-p-2);
+                vch[p] = vchVersion[p / (shift+1)];
+                vch[p+1] = 0x80;
+                strcpy(test,EncodeBase58(vch).c_str());
+                if(strlen(test) != strlen(res))
+                {
+                    if(strlen(test) > strlen(res))
+                    {
+                        res[strlen(res)+1]=0x00;
+                        res[strlen(res)]='X';
+                    }                        
+                    if(strlen(test) < strlen(res))
+                    {
+                        res[strlen(res)-1]=0x00;
+                    }                        
+                }
+                int j=0;
+                while( (j<(int)strlen(res)) && (res[j] == test[j]) )
+                {
+                    j++;
+                }
+                int k=0;
+                while( (k<3) && (j<(int)strlen(res)) && ((vch[p] != vchVersion[p / (shift+1)])  || (k ==0)))
+                {
+                    res[j]=test[j];
+                    DecodeBase58(res,vch);
+                    k++;
+                    j++;
+                }                
+            }
+        }
+        p++;
     }
+    
+//    strcpy(test,EncodeBase58(vch).c_str());
+  
+    
+    for(int i=0;i<(int)nVersionBytes;i++)
+    {
+        int size=shift;
+        if(i == (int)(nVersionBytes-1))
+        {
+            size=nDataBytes-i*shift;
+        }
+        memcpy(data+i*shift,&vch[i*(shift+1)+1],size);
+    }
+    
+    CKeyID kBurn;
+    memcpy(&kBurn,data,nDataBytes);
   
     CBitcoinAddress ba;
     ba.Set(kBurn,vchVersion);
@@ -382,13 +348,11 @@ public:
 
 } // anon namespace
 
-/* MCHN START */
 bool CBitcoinAddress::Set(const CKeyID &id,const std::vector<unsigned char>& vchV)
 {
     SetData(vchV, &id, 20);
     return true;    
 }
-/* MCHN END */
 
 
 bool CBitcoinAddress::Set(const CKeyID& id)

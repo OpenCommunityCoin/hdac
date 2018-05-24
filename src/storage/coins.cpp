@@ -121,9 +121,8 @@ CCoinsModifier CCoinsViewCache::ModifyCoins(const uint256 &txid) {
     }
     // Assume that whenever ModifyCoins is called, the entry will be modified.
     ret.first->second.flags |= CCoinsCacheEntry::DIRTY;
-/* MCHN START */    
     if(fDebug)LogPrint("mccoin","COIN: CH Modify %s\n", txid.ToString().c_str());
-/* MCHN END */    
+
     return CCoinsModifier(*this, ret.first);
 }
 
@@ -170,9 +169,7 @@ bool CCoinsViewCache::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlockIn
                     CCoinsCacheEntry& entry = cacheCoins[it->first];
                     entry.coins.swap(it->second.coins);
                     entry.flags = CCoinsCacheEntry::DIRTY | CCoinsCacheEntry::FRESH;
-/* MCHN START */    
                     if(fDebug)LogPrint("mccoin","COIN: CH Write  %s\n", it->first.ToString().c_str());
-/* MCHN END */    
                 }
             } else {
                 if ((itUs->second.flags & CCoinsCacheEntry::FRESH) && it->second.coins.IsPruned()) {
@@ -180,24 +177,24 @@ bool CCoinsViewCache::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlockIn
                     // modified and being pruned. This means we can just delete
                     // it from the parent.
                     cacheCoins.erase(itUs);
-/* MCHN START */    
+
                     if(fDebug)LogPrint("mccoin","COIN: CH Erase  %s\n", it->first.ToString().c_str());
-/* MCHN END */    
+
                 } else {
                     // A normal modification.
                     itUs->second.coins.swap(it->second.coins);
                     itUs->second.flags |= CCoinsCacheEntry::DIRTY;
-/* MCHN START */    
+
                     if(fDebug)LogPrint("mccoin","COIN: CH Update %s\n", it->first.ToString().c_str());
-/* MCHN END */    
+
                 }
             }
         }
         else
         {
-/* MCHN START */    
+
             if(fDebug)LogPrint("mccoin","COIN: CH Clean! %s\n", it->first.ToString().c_str());            
-/* MCHN END */    
+
         }
         CCoinsMap::iterator itOld = it++;
         mapCoins.erase(itOld);

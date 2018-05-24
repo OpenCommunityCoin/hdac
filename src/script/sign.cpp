@@ -16,7 +16,7 @@
 
 #include <boost/foreach.hpp>
 
-void MultichainNode_AddSignatureToCache(const std::vector<unsigned char>& vchSig, const CPubKey& pubkey, const uint256& sighash);
+void HdacNode_AddSignatureToCache(const std::vector<unsigned char>& vchSig, const CPubKey& pubkey, const uint256& sighash);
 
 using namespace std;
 
@@ -24,15 +24,6 @@ typedef vector<unsigned char> valtype;
 
 bool Sign1(const CKeyID& address, const CKeyStore& keystore, uint256 hash, int nHashType, CScript& scriptSigRet)
 {
-/* MCHN START */    
-/*    
-    if(mc_gState->m_Permissions->CanSend(NULL,(unsigned char*)(&address)) == 0)
-    {
-        return false;
-    }
- */ 
-/* MCHN END */    
-
     CKey key;
     if (!keystore.GetKey(address, key))
         return false;
@@ -42,7 +33,7 @@ bool Sign1(const CKeyID& address, const CKeyStore& keystore, uint256 hash, int n
         return false;
     if(GetBoolArg("-cachejustsigned",true))
     {
-        MultichainNode_AddSignatureToCache(vchSig,key.GetPubKey(),hash);
+        HdacNode_AddSignatureToCache(vchSig,key.GetPubKey(),hash);
     }
     vchSig.push_back((unsigned char)nHashType);
     scriptSigRet << vchSig;
@@ -60,8 +51,6 @@ bool SignN(const vector<valtype>& multisigdata, const CKeyStore& keystore, uint2
     {
         const valtype& pubkey = multisigdata[i];
         CKeyID keyID = CPubKey(pubkey).GetID();
-    
-/* MCHN START */        
                                                                                 // We are trying to use at least one address with send permission
                                                                                 // otherwise we can sign completely with addresses without send permission
                                                                                 // and entire signature will fail
@@ -69,16 +58,12 @@ bool SignN(const vector<valtype>& multisigdata, const CKeyStore& keystore, uint2
         {
             send_address_found=true;
         }
-/* MCHN END */        
 
         if (Sign1(keyID, keystore, hash, nHashType, scriptSigRet))
             ++nSigned;
     }
-/* MCHN START */        
                                                                                 // As a result of looking for send permission we may can sign more than required
     return nSigned>=nRequired;
-//    return nSigned==nRequired;
-/* MCHN END */        
 }
 
 /**
@@ -204,9 +189,7 @@ static CScript CombineMultisig(const CScript& scriptPubKey, const CTransaction& 
     unsigned int nSigsRequired = vSolutions.front()[0];
     unsigned int nPubKeys = vSolutions.size()-2;
     map<valtype, valtype> sigs;
-/* MCHN START */    
     bool cannot_send=true;
-/* MCHN END */    
     BOOST_FOREACH(const valtype& sig, allsigs)
     {
         for (unsigned int i = 0; i < nPubKeys; i++)
@@ -215,11 +198,8 @@ static CScript CombineMultisig(const CScript& scriptPubKey, const CTransaction& 
             if (sigs.count(pubkey))
                 continue; // Already got a sig for this pubkey
 
-/* MCHN START */            
-//            if (TransactionSignatureChecker(&txTo, nIn).CheckSig(sig, pubkey, scriptPubKey))
             if (TransactionSignatureChecker(&txTo, nIn).CheckSig(sig, pubkey, scriptPubKey, cannot_send))
             {
-/* MCHN END */            
                 sigs[pubkey] = sig;
                 break;
             }

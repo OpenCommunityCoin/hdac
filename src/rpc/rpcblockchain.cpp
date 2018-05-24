@@ -24,17 +24,14 @@ using namespace std;
 
 extern void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry);
 
-/* MCHN START */
-bool ParseMultichainTxOutToBuffer(uint256 hash,const CTxOut& txout,mc_Buffer *amounts,mc_Script *lpScript,int *allowed,int *required,string& strFailReason);
+bool ParseHdacTxOutToBuffer(uint256 hash,const CTxOut& txout,mc_Buffer *amounts,mc_Script *lpScript,int *allowed,int *required,string& strFailReason);
 vector<int> ParseBlockSetIdentifier(Value blockset_identifier);
 bool CreateAssetBalanceList(const CTxOut& out,mc_Buffer *amounts,mc_Script *lpScript);
 Object AssetEntry(const unsigned char *txid,int64_t quantity,uint32_t output_level);
 Array PermissionEntries(const CTxOut& txout,mc_Script *lpScript,bool fLong);
-Array PerOutputDataEntries(const CTxOut& txout,mc_Script *lpScript,uint256 txid,int vout);
 string EncodeHexTx(const CTransaction& tx);
 int OrphanPoolSize();
 bool paramtobool(Value param);
-/* MCHN END */
 
 void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out, bool fIncludeHex);
 
@@ -69,22 +66,18 @@ double GetDifficulty(const CBlockIndex* blockindex)
     return dDiff;
 }
 
-Object blockToJSONForListBlocks(const CBlock& block, const CBlockIndex* blockindex, bool verbose)
+Object blockToJSONForListBlocks(const CBlock& block, const CBlockIndex* blockindex, int verbose_level)
 {
     Object result;
     result.push_back(Pair("hash", blockindex->GetBlockHash().GetHex()));
-/* MCHN START */    
     CKeyID keyID;
     Value miner;
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain())
+    if(mc_gState->m_Permissions->GetBlockMiner(blockindex->nHeight,(unsigned char*)&keyID) == MC_ERR_NOERROR)
     {
-        if(mc_gState->m_Permissions->GetBlockMiner(blockindex->nHeight,(unsigned char*)&keyID) == MC_ERR_NOERROR)
-        {
-            miner=CBitcoinAddress(keyID).ToString();
-        }
+        miner=CBitcoinAddress(keyID).ToString();
     }
     result.push_back(Pair("miner", miner));
-/* MCHN END */        
+
     int confirmations = -1;
     // Only report confirmations if the block is on the main chain
     if (chainActive.Contains(blockindex))
@@ -94,21 +87,64 @@ Object blockToJSONForListBlocks(const CBlock& block, const CBlockIndex* blockind
     result.push_back(Pair("time", (int64_t)blockindex->nTime));
     result.push_back(Pair("txcount", (int64_t)blockindex->nTx));
     
-    if(verbose)
+    if(verbose_level > 0)
     {
         result.push_back(Pair("size", (int)::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION)));
         result.push_back(Pair("version", block.nVersion));
         result.push_back(Pair("merkleroot", block.hashMerkleRoot.GetHex()));
+        
+        if (verbose_level > 1)
+        {
+            Array txs;
+            Object objTx;
+            BOOST_FOREACH(const CTransaction&tx, block.vtx)
+            {        
+                if(true)
+                {
+                    objTx.clear();
+                    switch(verbose_level)
+                    {
+                        case 1:
+                            txs.push_back(tx.GetHash().GetHex());
+                            break;
+                        case 2:
+                            objTx.push_back(Pair("txid", tx.GetHash().GetHex()));
+                            objTx.push_back(Pair("hex", EncodeHexTx(tx)));
+                            txs.push_back(objTx);
+                            break;                    
+                        case 3:
+                            objTx.push_back(Pair("txid", tx.GetHash().GetHex()));
+                            objTx.push_back(Pair("version", tx.nVersion));
+                            objTx.push_back(Pair("locktime", (int64_t)tx.nLockTime));
+                            objTx.push_back(Pair("hex", EncodeHexTx(tx)));
+                            txs.push_back(objTx);
+                            break;                                                            
+                        case 4:
+                            TxToJSON(tx, uint256(0), objTx);
+                            objTx.push_back(Pair("hex", EncodeHexTx(tx)));
+                            txs.push_back(objTx);
+                            break;
+                    }
+                }
+                else
+                {
+                    txs.push_back(tx.GetHash().GetHex());
+                }
+            }
+            result.push_back(Pair("tx", txs));
+            result.push_back(Pair("time", block.GetBlockTime()));
+        }
+        
         result.push_back(Pair("nonce", (uint64_t)block.nNonce));
         result.push_back(Pair("bits", strprintf("%08x", block.nBits)));
         result.push_back(Pair("difficulty", GetDifficulty(blockindex)));
         result.push_back(Pair("chainwork", blockindex->nChainWork.GetHex()));
-
+        
         if (blockindex->pprev)
-            result.push_back(Pair("previousblockhash", blockindex->pprev->GetBlockHash().GetHex()));
+        result.push_back(Pair("previousblockhash", blockindex->pprev->GetBlockHash().GetHex()));
         CBlockIndex *pnext = chainActive.Next(blockindex);
         if (pnext)
-            result.push_back(Pair("nextblockhash", pnext->GetBlockHash().GetHex()));
+        result.push_back(Pair("nextblockhash", pnext->GetBlockHash().GetHex()));
     }
     
     return result;
@@ -123,12 +159,9 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool txDe
 /* MCHN START */    
     CKeyID keyID;
     Value miner;
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain())
+    if(mc_gState->m_Permissions->GetBlockMiner(blockindex->nHeight,(unsigned char*)&keyID) == MC_ERR_NOERROR)
     {
-        if(mc_gState->m_Permissions->GetBlockMiner(blockindex->nHeight,(unsigned char*)&keyID) == MC_ERR_NOERROR)
-        {
-            miner=CBitcoinAddress(keyID).ToString();
-        }
+        miner=CBitcoinAddress(keyID).ToString();
     }
     result.push_back(Pair("miner", miner));
 /* MCHN END */        
@@ -364,23 +397,37 @@ Value listblocks(const Array& params, bool fHelp)
     Array result;
     vector <int> heights=ParseBlockSetIdentifier(params[0]);
     
-    bool verbose=false;
+    int verbose_level = 0;
     
     if (params.size() > 1)    
     {
-        verbose=paramtobool(params[1]);
+        if (params[1].type() == bool_type)
+        {
+            if(!params[1].get_bool())
+            {
+                verbose_level=0;
+            }        
+        }
+        else
+        {
+            verbose_level=params[1].get_int();
+            if((verbose_level < 0) || (verbose_level >4))
+            {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, "verbose out of range");                
+            }
+        }
     }
     
     for(unsigned int i=0;i<heights.size();i++)
     {
         CBlock block;
-        if(verbose)
+        if(verbose_level > 0)
         {
             if(!ReadBlockFromDisk(block, chainActive[heights[i]]))
                 throw JSONRPCError(RPC_INTERNAL_ERROR, "Can't read block from disk");
         }
         
-        result.push_back(blockToJSONForListBlocks(block, chainActive[heights[i]], verbose));
+        result.push_back(blockToJSONForListBlocks(block, chainActive[heights[i]], verbose_level));
     }
     
     return result;
@@ -555,23 +602,11 @@ Value gettxout(const Array& params, bool fHelp)
             assets.push_back(asset_entry);
         }
 
-        if( (assets.size() > 0) || (mc_gState->m_Compatibility & MC_VCM_1_0) )
-        {
-            ret.push_back(Pair("assets", assets));
-        }
+        ret.push_back(Pair("assets", assets));
     }
     Array permissions=PermissionEntries(txout,lpScript,false);
-    if( (permissions.size() > 0) || (mc_gState->m_Compatibility & MC_VCM_1_0) )
-    {
-        ret.push_back(Pair("permissions", permissions));
-    }
-    Array data=PerOutputDataEntries(txout,lpScript,hash,n);
-    if(data.size())
-    {
-        ret.push_back(Pair("data", data));
-    }
-/* MCHN END */        
-
+    ret.push_back(Pair("permissions", permissions));
+    
     return ret;
 }
 
@@ -597,12 +632,12 @@ Value getblockchaininfo(const Array& params, bool fHelp)
 
     Object obj;
 /* MCHN START*/
-//    obj.push_back(Pair("chain",                 Params().NetworkIDString()));
+    //obj.push_back(Pair("chain",                 Params().NetworkIDString()));
     obj.push_back(Pair("chain",Params().TestnetToBeDeprecatedFieldRPC() ? "test" : "main"));
     obj.push_back(Pair("chainname", string(mc_gState->m_NetworkParams->Name())));
-    obj.push_back(Pair("description", string((char*)mc_gState->m_NetworkParams->GetParam("chaindescription",NULL))));
+    //obj.push_back(Pair("description", string((char*)mc_gState->m_NetworkParams->GetParam("chaindescription",NULL))));
     obj.push_back(Pair("protocol", string((char*)mc_gState->m_NetworkParams->GetParam("chainprotocol",NULL))));        
-    obj.push_back(Pair("setupblocks", mc_gState->m_NetworkParams->GetInt64Param("setupfirstblocks")));    
+    //obj.push_back(Pair("setupblocks", mc_gState->m_NetworkParams->GetInt64Param("setupfirstblocks")));    
     obj.push_back(Pair("reindex",       fReindex));    
 /* MCHN END*/
     obj.push_back(Pair("blocks",                (int)chainActive.Height()));
@@ -697,7 +732,7 @@ Value getmempoolinfo(const Array& params, bool fHelp)
     Object ret;
     ret.push_back(Pair("size", (int64_t) mempool.size()));
     ret.push_back(Pair("bytes", (int64_t) mempool.GetTotalTxSize()));
-//    ret.push_back(Pair("orphan", OrphanPoolSize()));
+    ret.push_back(Pair("orphan", OrphanPoolSize()));
 
     return ret;
 }

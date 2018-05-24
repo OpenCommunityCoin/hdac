@@ -218,7 +218,7 @@ private:
 
         // We need to guess why the transaction was included in a block-- either
         // because it is high-priority or because it has sufficient fees.
-        bool sufficientFee = (feeRate > minRelayFee);
+        bool sufficientFee = (feeRate >= minRelayFee);
         bool sufficientPriority = AllowFree(dPriority);
         const char* assignedTo = "unassigned";
         if (sufficientFee && !sufficientPriority && CBlockAverage::AreSane(feeRate, minRelayFee))
@@ -289,7 +289,8 @@ public:
             BOOST_FOREACH(const CTxMemPoolEntry* entry, e)
             {
                 // Fees are stored and reported as BTC-per-kb:
-                CFeeRate feeRate(entry->GetFee(), entry->GetTxSize());
+                size_t t_size = (entry->GetTxSize())>1000?entry->GetTxSize():1000;
+                CFeeRate feeRate(entry->GetFee(), t_size);
                 double dPriority = entry->GetPriority(entry->GetHeight()); // Want priority when it went IN
                 seenTxConfirm(feeRate, minRelayFee, dPriority, i);
             }
@@ -844,7 +845,7 @@ void CTxMemPool::PrioritiseTransaction(const uint256 hash, const string strHash,
         deltas.first += dPriorityDelta;
         deltas.second += nFeeDelta;
     }
-    LogPrintf("PrioritiseTransaction: %s priority += %f, fee += %d\n", strHash, dPriorityDelta, FormatMoney(nFeeDelta));
+    //LogPrintf("PrioritiseTransaction: %s priority += %f, fee += %d\n", strHash, dPriorityDelta, FormatMoney(nFeeDelta));
 }
 
 void CTxMemPool::ApplyDeltas(const uint256 hash, double &dPriorityDelta, CAmount &nFeeDelta)

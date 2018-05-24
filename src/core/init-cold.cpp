@@ -3,7 +3,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
-
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 #if defined(HAVE_CONFIG_H)
 #include "config/bitcoin-config.h"
 #endif
@@ -31,10 +32,8 @@
 #endif
 
 
-/* MCHN START */
-
 #include "structs/base58.h"
-#include "multichain/multichain.h"
+#include "hdac/hdac.h"
 #include "wallet/wallettxs.h"
 std::string BurnAddress(const std::vector<unsigned char>& vchVersion);
 
@@ -42,9 +41,6 @@ void HandleSIGTERM(int);
 void HandleSIGHUP(int);
 bool InitSanityCheck(void);
 
-
-
-/* MCHN END */
 
 #include <stdint.h>
 #include <stdio.h>
@@ -152,13 +148,13 @@ void Shutdown_Cold()
 #ifdef ENABLE_WALLET
     delete pwalletMain;
     pwalletMain = NULL;
-/* MCHN START */  
+
     if(pwalletTxsMain)
     {
         delete pwalletTxsMain;
         pwalletTxsMain=NULL;
     }
-/* MCHN END */  
+
 #endif
     globalVerifyHandle.reset();
     ECC_Stop();
@@ -171,18 +167,18 @@ std::string HelpMessage_Cold()
     // When adding new options to the categories, please keep and ensure alphabetical ordering.
     string strUsage = _("Options:") + "\n";
     strUsage += "  -?                     " + _("This help message") + "\n";
-    strUsage += "  -conf=<file>           " + strprintf(_("Specify configuration file (default: %s)"), "multichain.conf") + "\n";
+    strUsage += "  -conf=<file>           " + strprintf(_("Specify configuration file (default: %s)"), "hdac.conf") + "\n";	// HDAC
 #if !defined(WIN32)
         strUsage += "  -daemon                " + _("Run in the background as a daemon and accept commands") + "\n";
 #endif
         
     strUsage += "  -datadir=<dir>         " + _("Specify data directory") + "\n";
 #ifndef WIN32
-    strUsage += "  -pid=<file>            " + strprintf(_("Specify pid file (default: %s)"), "multichain.pid") + "\n";
+    strUsage += "  -pid=<file>            " + strprintf(_("Specify pid file (default: %s)"), "hdac.pid") + "\n";	// HDAC
 #endif
 #if !defined(WIN32)
     strUsage += "  -sysperms              " + _("Create new files with system default permissions, instead of umask 077 (only effective with disabled wallet functionality)") + "\n";
-    strUsage += "  -shortoutput           " + _("Returns connection string if this node can start or default multichain address otherwise") + "\n";
+    strUsage += "  -shortoutput           " + _("Returns connection string if this node can start or default hdac address otherwise") + "\n";	// HDAC
 #endif
 
 
@@ -194,9 +190,7 @@ std::string HelpMessage_Cold()
         strUsage += "  -mintxfee=<amt>        " + strprintf(_("Fees (in BTC/Kb) smaller than this are considered zero fee for transaction creation (default: %s)"), FormatMoney(CWallet::minTxFee.GetFeePerK())) + "\n";
     strUsage += "  -salvagewallet         " + _("Attempt to recover private keys from a corrupt wallet.dat") + " " + _("on startup") + "\n";
     strUsage += "  -wallet=<file>         " + _("Specify wallet file (within data directory)") + " " + strprintf(_("(default: %s)"), "wallet.dat") + "\n";
-/* MCHN START */    
     strUsage += "  -walletdbversion=1|2   " + _("Specify wallet version, 1 - not scalable, 2 (default) - scalable") + "\n";
-/* MCHN END */    
 #endif
 
     strUsage += "\n" + _("Debugging/Testing options:") + "\n";
@@ -228,9 +222,9 @@ std::string HelpMessage_Cold()
     strUsage += "  -rpcsslprivatekeyfile=<file.pem>         " + strprintf(_("Server private key (default: %s)"), "server.pem") + "\n";
     strUsage += "  -rpcsslciphers=<ciphers>                 " + strprintf(_("Acceptable ciphers (default: %s)"), "TLSv1.2+HIGH:TLSv1+HIGH:!SSLv2:!aNULL:!eNULL:!3DES:@STRENGTH") + "\n";
 
-    strUsage += "\n" + _("MultiChain runtime parameters") + "\n";    
-    strUsage += "  -initprivkey=<privkey>                   " + _("Manually set the wallet default address and private key when running multichaind for the first time.") + "\n";
-    strUsage += "  -hideknownopdrops=<n>                    " + strprintf(_("Remove recognized MultiChain OP_DROP metadata from the responses to JSON_RPC calls (default: %u)"), 0) + "\n";
+    strUsage += "\n" + _("Hdac runtime parameters") + "\n";    	// HDAC
+    strUsage += "  -initprivkey=<privkey>                   " + _("Manually set the wallet default address and private key when running hdacd for the first time.") + "\n";	// HDAC
+    strUsage += "  -hideknownopdrops=<n>                    " + strprintf(_("Remove recognized Hdac OP_DROP metadata from the responses to JSON_RPC calls (default: %u)"), 0) + "\n";	// HDAC
     strUsage += "  -shrinkdebugfilesize=<n>                 " + _("If shrinkdebugfile is 1, this controls the size of the debug file. Whenever the debug.log file reaches over 5 times this number of bytes, it is reduced back down to this size.") + "\n";
     
     
@@ -243,10 +237,8 @@ std::string HelpMessage_Cold()
  */
 bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
 {
-/* MCHN START */    
     char bufOutput[4096];
     size_t bytes_written;
-/* MCHN END */        
     // ********************************************************* Step 1: setup
 #ifdef _MSC_VER
     // Turn off Microsoft heap dump noise
@@ -321,9 +313,7 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
     // Set this early so that parameter interactions go to console
     fPrintToConsole = GetBoolArg("-printtoconsole", false);
     fLogTimestamps = GetBoolArg("-logtimestamps", true);
-/* MCHN START */    
     fLogTimeMillis = GetBoolArg("-logtimemillis", false);
-/* MCHN END */    
 
     // ********************************************************* Step 3: parameter-to-internal-flags
 
@@ -350,10 +340,10 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
 
     // Sanity check
     if (!InitSanityCheck())
-        return InitError(_("Initialization sanity check failed. MultiChain Core is shutting down."));
+        return InitError(_("Initialization sanity check failed. Hdac Core is shutting down."));	// HDAC
 
     std::string strDataDir = GetDataDir().string();
-    LogPrint("mchn","mchn: Data directory: %s\n",strDataDir.c_str());
+    LogPrint("hdac","hdac: Data directory: %s\n",strDataDir.c_str());
 #ifdef ENABLE_WALLET
     // Wallet file must be a plain filename without a directory
     if (strWalletFile != boost::filesystem::basename(strWalletFile) + boost::filesystem::extension(strWalletFile))
@@ -364,15 +354,13 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
     FILE* file = fopen(pathLockFile.string().c_str(), "a"); // empty lock file; created if it doesn't exist.
     if (file) fclose(file);
 
-/* MCHN START ifndef */
 // In windows .lock file cannot be removed by remove_all if needed
 // Anyway, we don't need this lock as we have permission db lock    
 #ifndef WIN32
     static boost::interprocess::file_lock lock(pathLockFile.string().c_str());
     if (!lock.try_lock())
-        return InitError(strprintf(_("Cannot obtain a lock on data directory %s. MultiChain Core is probably already running."), strDataDir));
+        return InitError(strprintf(_("Cannot obtain a lock on data directory %s. Hdac Core is probably already running."), strDataDir));	// HDAC
 #endif
-/* MCHN END */
     
 #ifndef WIN32
     CreatePidFile(GetPidFile(), getpid());
@@ -380,14 +368,8 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
     if (GetBoolArg("-shrinkdebugfile", !fDebug))
         ShrinkDebugFile();
     LogPrintf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-//    LogPrintf("Bitcoin version %s (%s)\n", FormatFullVersion(), CLIENT_DATE);
-/* MCHN START */    
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain())
-    {
-        LogPrintf("MultiChain offline version build %s protocol %s (%s)\n", mc_BuildDescription(mc_gState->GetNumericVersion()), mc_gState->GetProtocolVersion(), CLIENT_DATE);
-    }
+    LogPrintf("Hdac offline version %s (%s)\n", mc_gState->GetFullVersion(), CLIENT_DATE);	// HDAC
 
-/* MCHN END */    
     LogPrintf("Using OpenSSL version %s\n", SSLeay_version(SSLEAY_VERSION));
 #ifdef ENABLE_WALLET
     LogPrintf("Using BerkeleyDB version %s\n", DbEnv::version(0, 0, 0));
@@ -452,8 +434,7 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
         }
     } // (!fDisableWallet)
 
-/* MCHN START*/    
-    uiInterface.InitMessage(_("Initializing multichain..."));
+    uiInterface.InitMessage(_("Initializing hdac..."));	// HDAC
 
     if(GetBoolArg("-offline",false))
     {
@@ -475,14 +456,14 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
     pwalletMain=NULL;
     
     string seed_error="";
-    bool zap_wallet_txs=false;
+    //bool zap_wallet_txs=false;
     bool new_wallet_txs=false;
     
     if(mc_gState->m_NetworkParams->m_Status == MC_PRM_STATUS_VALID)
     {
-        LogPrintf("mchn: Parameter set is valid - initializing blockchain parameters...\n");
+        LogPrintf("hdac: Parameter set is valid - initializing blockchain parameters...\n");
         mc_gState->m_NetworkParams->SetGlobals();
-        InitializeMultiChainParams();        
+        InitializeHdacParams();        
 
         if(GetBoolArg("-reindex", false))
         {
@@ -493,7 +474,7 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
         mc_gState->m_Assets= new mc_AssetDB;
         if(mc_gState->m_Assets->Initialize(mc_gState->m_Params->NetworkName(),0))                                
         {
-            seed_error=strprintf("ERROR: Couldn't initialize asset database for blockchain %s. Please restart multichaind with reindex=1.\n",mc_gState->m_Params->NetworkName());
+            seed_error=strprintf("ERROR: Couldn't initialize asset database for blockchain %s. Please restart hdacd with reindex=1.\n",mc_gState->m_Params->NetworkName());	// HDAC
             return InitError(_(seed_error.c_str()));        
         }
         
@@ -513,13 +494,13 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
         {
             mc_gState->m_WalletMode=MC_WMD_NONE;
             wallet_mode_valid=true;
-            zap_wallet_txs=false;
+            //zap_wallet_txs=false;
         }
         if(wallet_mode == -1)
         {
             mc_gState->m_WalletMode=MC_WMD_TXS | MC_WMD_ADDRESS_TXS | MC_WMD_MAP_TXS;            
             wallet_mode_valid=true;
-            zap_wallet_txs=false;
+            //zap_wallet_txs=false;
         }
 
         if(!wallet_mode_valid)
@@ -530,35 +511,33 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
         vector <mc_TxEntity> vSubscribedEntities;
         if(GetBoolArg("-reindex", false) || GetBoolArg("-rescan", false))
         {
-            if(mc_gState->m_Features->Streams())
+            pwalletTxsMain=new mc_WalletTxs;
+            if(pwalletTxsMain->Initialize(mc_gState->m_NetworkParams->Name(),MC_WMD_TXS | MC_WMD_ADDRESS_TXS) == MC_ERR_NOERROR)
             {
-                pwalletTxsMain=new mc_WalletTxs;
-                if(pwalletTxsMain->Initialize(mc_gState->m_NetworkParams->Name(),MC_WMD_TXS | MC_WMD_ADDRESS_TXS) == MC_ERR_NOERROR)
+                mc_Buffer *entity_list;
+                entity_list=pwalletTxsMain->GetEntityList();
+                for(int e=0;e<entity_list->GetCount();e++)
                 {
-                    mc_Buffer *entity_list;
-                    entity_list=pwalletTxsMain->GetEntityList();
-                    for(int e=0;e<entity_list->GetCount();e++)
+                    mc_TxEntityStat *stat;
+                    stat=(mc_TxEntityStat *)entity_list->GetRow(e);
+                    switch(stat->m_Entity.m_EntityType & MC_TET_TYPE_MASK)
                     {
-                        mc_TxEntityStat *stat;
-                        stat=(mc_TxEntityStat *)entity_list->GetRow(e);
-                        switch(stat->m_Entity.m_EntityType & MC_TET_TYPE_MASK)
-                        {
-                            case MC_TET_PUBKEY_ADDRESS:
-                            case MC_TET_SCRIPT_ADDRESS:
-                            case MC_TET_STREAM:
-                            case MC_TET_STREAM_KEY:
-                            case MC_TET_STREAM_PUBLISHER:
-                                vSubscribedEntities.push_back(stat->m_Entity);
-                                break;
-                        }
+                        case MC_TET_PUBKEY_ADDRESS:
+                        case MC_TET_SCRIPT_ADDRESS:
+                        case MC_TET_STREAM:
+                        case MC_TET_STREAM_KEY:
+                        case MC_TET_STREAM_PUBLISHER:
+                            vSubscribedEntities.push_back(stat->m_Entity);
+                            break;
                     }
-                    __US_Sleep(1000);
                 }
-                pwalletTxsMain->Destroy();
-                delete pwalletTxsMain;            
+                __US_Sleep(1000);
             }
+            pwalletTxsMain->Destroy();
+            delete pwalletTxsMain;            
+
             mc_RemoveDir(mc_gState->m_Params->NetworkName(),"wallet");            
-            zap_wallet_txs=true;
+            //zap_wallet_txs=true;
         }
 
 
@@ -571,7 +550,7 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
         {
             if(boost::filesystem::exists(pathWallet))
             {
-                return InitError(strprintf("Wallet was created in version 2. To switch to version 1, with worse performance and scalability, run: \nmultichaind %s -walletdbversion=1 -rescan\n",mc_gState->m_NetworkParams->Name()));                                        
+                return InitError(strprintf("Wallet was created in version 2. To switch to version 1, with worse performance and scalability, run: \nhdacd %s -walletdbversion=1 -rescan\n",mc_gState->m_NetworkParams->Name()));	// HDAC
             }
         }
         else
@@ -586,7 +565,7 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
                     }
                     if(mc_gState->m_WalletMode != MC_WMD_NONE)
                     {
-                        return InitError(strprintf("Wallet was created in version 1. To switch to version 2, with better performance and scalability, run: \nmultichaind %s -walletdbversion=2 -rescan\n",mc_gState->m_NetworkParams->Name()));                                        
+                        return InitError(strprintf("Wallet was created in version 1. To switch to version 2, with better performance and scalability, run: \nhdacd %s -walletdbversion=2 -rescan\n",mc_gState->m_NetworkParams->Name()));	// HDAC
                     }                    
                 }
                 else
@@ -625,7 +604,7 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
 
                 if(pwalletTxsMain->Initialize(mc_gState->m_NetworkParams->Name(),mc_gState->m_WalletMode))
                 {
-                    return InitError("Wallet tx database corrupted. Please restart multichaind with -rescan\n");                        
+                    return InitError("Wallet tx database corrupted. Please restart hdacd with -rescan\n");                        // HDAC
                 }
 
                 if(mc_gState->m_WalletMode & MC_WMD_AUTO)
@@ -640,12 +619,12 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
 
                 if((pwalletTxsMain->m_Database->m_DBStat.m_WalletVersion) != wallet_mode)
                 {
-                    return InitError(strprintf("Wallet tx database was created with different wallet version (%d). Please restart multichaind with reindex=1 \n",pwalletTxsMain->m_Database->m_DBStat.m_WalletVersion));                        
+                    return InitError(strprintf("Wallet tx database was created with different wallet version (%d). Please restart hdacd with reindex=1 \n",pwalletTxsMain->m_Database->m_DBStat.m_WalletVersion));	// HDAC
                 }        
 
                 if((pwalletTxsMain->m_Database->m_DBStat.m_InitMode & MC_WMD_MODE_MASK) != (mc_gState->m_WalletMode & MC_WMD_MODE_MASK))
                 {
-                    return InitError(strprintf("Wallet tx database was created in different mode (%08X). Please restart multichaind with reindex=1 \n",pwalletTxsMain->m_Database->m_DBStat.m_InitMode));                        
+                    return InitError(strprintf("Wallet tx database was created in different mode (%08X). Please restart hdacd with reindex=1 \n",pwalletTxsMain->m_Database->m_DBStat.m_InitMode));	// HDAC
                 }        
             }
         }
@@ -659,7 +638,7 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
             }
         }
 
-        if(pwalletMain == NULL)                                                 // Opening wallet only after multichain parameters were initizalized
+        if(pwalletMain == NULL)                                                 // Opening wallet only after parameters were initizalized
         {
             pwalletMain = new CWallet(strWalletFile);
             DBErrors nLoadWalletRetForBuild = pwalletMain->LoadWallet(fFirstRunForBuild);
@@ -673,11 +652,11 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
             {
                 if(init_privkey.size())
                 {
-                    LogPrintf("mchn: Default key is specified using -initprivkey - not created\n");                
+                    LogPrintf("hdac: Default key is specified using -initprivkey - not created\n");                
                 }
                 else
                 {
-                    LogPrintf("mchn: Default key is not found - creating new... \n");
+                    LogPrintf("hdac: Default key is not found - creating new... \n");
                     // Create new keyUser and set as default key
         //            RandAddSeedPerfmon();
 
@@ -692,7 +671,7 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
             {
                 if(init_privkey.size())
                 {
-                    LogPrintf("mchn: Wallet already has default key, -initprivkey is ignored\n");                
+                    LogPrintf("hdac: Wallet already has default key, -initprivkey is ignored\n");                
                     if(!GetBoolArg("-shortoutput", false))
                     {    
                         sprintf(bufOutput,"Wallet already has default key, -initprivkey is ignored\n\n");
@@ -775,47 +754,37 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
             }
             
             CPubKey pkey;
-            if(mc_gState->m_NetworkParams->IsProtocolMultichain())
+            if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_CONNECT))
             {
-                if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_CONNECT))
-                {
-                    LogPrint("mchn","mchn: Default connect  address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
-                }
-                if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_SEND))
-                {
-                    LogPrint("mchn","mchn: Default send     address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
-                }
-                if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_RECEIVE))
-                {
-                    LogPrint("mchn","mchn: Default receive  address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
-                }
-                if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_CREATE))
-                {
-                    LogPrint("mchn","mchn: Default create   address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
-                }
-                if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_ISSUE))
-                {
-                    LogPrint("mchn","mchn: Default issue    address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
-                }
-                if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_MINE))
-                {
-                    LogPrint("mchn","mchn: Default mine     address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
-                }
-                if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_ADMIN))
-                {
-                    LogPrint("mchn","mchn: Default admin    address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
-                }
-                if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_ACTIVATE))
-                {
-                    LogPrint("mchn","mchn: Default activate address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
-                }
+                LogPrint("hdac","hdac: Default connect  address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
             }
-            else
+            if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_SEND))
             {
-                if(pwalletMain->GetKeyFromAddressBook(pkey,0))
-                {
-                    LogPrint("mchn","mchn: Default address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
-                }                
+                LogPrint("hdac","hdac: Default send     address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
+            }
+            if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_RECEIVE))
+            {
+                LogPrint("hdac","hdac: Default receive  address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
+            }
+            if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_CREATE))
+            {
+                LogPrint("hdac","hdac: Default create   address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
+            }
+            if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_ISSUE))
+            {
+                LogPrint("hdac","hdac: Default issue    address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
+            }
+            if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_MINE))
+            {
+                LogPrint("hdac","hdac: Default mine     address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
+            }
+            if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_ADMIN))
+            {
+                LogPrint("hdac","hdac: Default admin    address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
+            }
+            if(pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_ACTIVATE))
+            {
+                LogPrint("hdac","hdac: Default activate address: %s\n",CBitcoinAddress(pkey.GetID()).ToString().c_str());                
             }
             delete pwalletMain;
             pwalletMain=NULL;
@@ -835,14 +804,13 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
         uiInterface.InitMessage.connect(SetRPCWarmupStatus);
         StartRPCThreads();
     }
-/* MCHN END*/        
     
 
 #endif // ENABLE_WALLET
     // ********************************************************* Step 6: network initialization
 /*
     int version=mc_gState->m_NetworkParams->GetInt64Param("protocolversion");
-    LogPrintf("MultiChain protocol version: %d\n",version);
+    LogPrintf("Hdac protocol version: %d\n",version);
     if(version != mc_gState->GetProtocolVersion())
     {
         if(!GetBoolArg("-shortoutput", false))
@@ -852,7 +820,6 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
         }
     }
 */    
-/* MCHN END */    
 
     // ********************************************************* Step 7: load block chain
 
@@ -892,11 +859,11 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
     else if (nTotalCache > (nMaxDbCache << 20))
         nTotalCache = (nMaxDbCache << 20); // total cache cannot be greater than nMaxDbCache
     size_t nBlockTreeDBCache = nTotalCache / 8;
-/* MCHN START */    
+
 /* Default was false */    
     if (nBlockTreeDBCache > (1 << 21) && !GetBoolArg("-txindex", true))
         nBlockTreeDBCache = (1 << 21); // block tree db cache shouldn't be larger than 2 MiB
-/* MCHN END */    
+
     nTotalCache -= nBlockTreeDBCache;
     size_t nCoinDBCache = nTotalCache / 2; // use half of the remaining cache for coindb cache
     nTotalCache -= nCoinDBCache;
@@ -964,13 +931,11 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
                 }
 
                 // Check for changed -txindex state
-/* MCHN START */    
 /* Default was false */    
                 if (fTxIndex != GetBoolArg("-txindex", true)) {
                     strLoadError = _("You need to rebuild the database using -reindex to change -txindex");
                     break;
                 }
-/* MCHN END */    
 
                 uiInterface.InitMessage(_("Verifying blocks..."));
             } catch(std::exception &e) {
@@ -985,12 +950,10 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
         if (!fLoaded) {
             // first suggest a reindex
             if (!fReset) {
-/* MCHN START */                
                 bool fRet = uiInterface.ThreadSafeMessageBox(
-                    strLoadError + ".\n\n" + _("Please restart multichaind with reindex=1."),
-                    "", CClientUIInterface::BTN_ABORT);
+                    strLoadError + ".\n\n" + _("Please restart hdacd with reindex=1."),
+                    "", CClientUIInterface::BTN_ABORT);	// HDAC
                 
-/* MCHN END */                
                 if (fRet) {
                     fReindex = true;
                     fRequestShutdown = false;
@@ -1014,16 +977,16 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
         return false;
     }
     LogPrintf(" block index %15dms\n", GetTimeMillis() - nStart);
-    
-    if(mapMultiArgs.count("-rpcallowip") == 0)
-    {
-        sprintf(bufOutput,"Listening for API requests on port %d (local only - see rpcallowip setting)\n\n",(int)GetArg("-rpcport", BaseParams().RPCPort()));                            
-        bytes_written=write(OutputPipe,bufOutput,strlen(bufOutput));        
-    }
-    
 
     int version=mc_gState->m_NetworkParams->ProtocolVersion();
-    LogPrintf("MultiChain protocol version: %d\n",version);
+
+    if(mapMultiArgs.count("-rpcallowip") == 0)
+    {
+        sprintf(bufOutput,"Listening for API requests on port %d (local only - see rpcallowip setting)\n\n",(int)GetArg("-rpcport", BaseParams().RPCPort()));
+        bytes_written=write(OutputPipe,bufOutput,strlen(bufOutput));
+    }
+
+    LogPrintf("Hdac protocol version: %d\n",version);	// HDAC
     if(version != mc_gState->GetProtocolVersion())
     {
         if(!GetBoolArg("-shortoutput", false))
@@ -1032,11 +995,11 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
 
             if(version != original_protocol_version)
             {
-                sprintf(bufOutput,"Chain running protocol version %d (chain created with %d)\n\n",version,original_protocol_version);                            
+                sprintf(bufOutput,"Chain running protocol version %d (chain created with %d)\n\n",version,original_protocol_version);
             }
             else
             {
-                sprintf(bufOutput,"Chain running protocol version %d\n\n",version);            
+                sprintf(bufOutput,"Chain running protocol version %d\n\n",version);
             }
             bytes_written=write(OutputPipe,bufOutput,strlen(bufOutput));
         }
@@ -1084,11 +1047,11 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
                              " or address book entries might be missing or incorrect."));
                 InitWarning(msg);
             }
-            else if (nLoadWalletRet == DB_TOO_NEW)                              // MCHN
-                strErrors << _("Error loading wallet.dat: Wallet requires newer version of MultiChain Core") << "\n";
-            else if (nLoadWalletRet == DB_NEED_REWRITE)                         // MCHN
+            else if (nLoadWalletRet == DB_TOO_NEW)
+                strErrors << _("Error loading wallet.dat: Wallet requires newer version of Hdac Core") << "\n";	// HDAC
+            else if (nLoadWalletRet == DB_NEED_REWRITE)
             {
-                strErrors << _("Wallet needed to be rewritten: restart MultiChain Core to complete") << "\n";
+                strErrors << _("Wallet needed to be rewritten: restart Hdac Core to complete") << "\n";	// HDAC
                 LogPrintf("%s", strErrors.str());
                 return InitError(strErrors.str());
             }
@@ -1150,9 +1113,7 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
             }
         }
  */ 
-/* MCHN START */  
         pwalletTxsMain->BindWallet(pwalletMain);
-/* MCHN END */        
 /*        
         if (chainActive.Tip() && chainActive.Tip() != pindexRescan)
         {
@@ -1188,12 +1149,10 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
             }
         }
  */ 
-/* MCHN START */  
         pwalletMain->lpWalletTxs=pwalletTxsMain;
         pwalletMain->InitializeUnspentList();
     
         
-/* MCHN END */        
     } // (!fDisableWallet)
 #else // ENABLE_WALLET
     LogPrintf("No wallet compiled in!\n");
@@ -1241,7 +1200,6 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
     SetRPCWarmupFinished();                                                     // Should be here, otherwise wallet can double spend
     uiInterface.InitMessage(_("Done loading"));
 
-/* MCHN START */    
     if(!GetBoolArg("-shortoutput", false))
     {    
         sprintf(bufOutput,"Node ready.\n\n");
@@ -1249,7 +1207,12 @@ bool AppInit2_Cold(boost::thread_group& threadGroup,int OutputPipe)
     }
     mc_InitRPCHelpMap();
 
+    // Dummy code To prevent compile warning
+    if(0)
+    {
+      LogPrintf("written size = %u\n", bytes_written);
+    }
+
     LogPrintf("Node started\n");
-/* MCHN END */    
     return !fRequestShutdown;
 }

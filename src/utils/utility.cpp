@@ -1,7 +1,9 @@
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
-#include "multichain/multichain.h"
+#include "hdac/hdac.h"
 #ifndef WIN32
 #include <termios.h>
 #include <sys/ioctl.h>
@@ -437,14 +439,7 @@ int mc_Buffer::Add(const void *lpKey,const void *lpValue)
     
     if(m_KeySize<m_RowSize)
     {
-        if(lpValue)
-        {
-            memcpy(m_lpData+m_Size+m_KeySize,lpValue,m_RowSize-m_KeySize);
-        }
-        else
-        {
-            memset(m_lpData+m_Size+m_KeySize,0,m_RowSize-m_KeySize);
-        }
+        memcpy(m_lpData+m_Size+m_KeySize,lpValue,m_RowSize-m_KeySize);
     }
         
     m_Size+=m_RowSize;

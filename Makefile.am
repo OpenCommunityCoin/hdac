@@ -4,19 +4,10 @@ SUBDIRS = src
 
 GZIP_ENV="-9n"
 
-BITCOIND_BIN=$(top_builddir)/src/bitcoind$(EXEEXT)
-BITCOIN_QT_BIN=$(top_builddir)/src/qt/bitcoin-qt$(EXEEXT)
-BITCOIN_CLI_BIN=$(top_builddir)/src/bitcoin-cli$(EXEEXT)
-BITCOIN_WIN_INSTALLER=$(PACKAGE)-$(PACKAGE_VERSION)-win$(WINDOWS_BITS)-setup$(EXEEXT)
-
-# MCHN START
-
-MULTICHAIND_BIN=$(top_builddir)/src/multichaind$(EXEEXT)
-MULTICHAIND_COLD_BIN=$(top_builddir)/src/multichaind-cold$(EXEEXT)
-MULTICHAIN_CLI_BIN=$(top_builddir)/src/multichain-cli$(EXEEXT)
-MULTICHAIN_UTIL_BIN=$(top_builddir)/src/multichain-util$(EXEEXT)
-
-# MCHN END
+HDACD_BIN=$(top_builddir)/src/hdacd$(EXEEXT)
+HDACD_COLD_BIN=$(top_builddir)/src/hdacd-cold$(EXEEXT)
+HDAC_CLI_BIN=$(top_builddir)/src/hdac-cli$(EXEEXT)
+HDAC_UTIL_BIN=$(top_builddir)/src/hdac-util$(EXEEXT)
 
 OSX_APP=Bitcoin-Qt.app
 OSX_DMG=Bitcoin-Qt.dmg
@@ -59,13 +50,10 @@ distcleancheck:
 
 $(BITCOIN_WIN_INSTALLER): all-recursive
 	$(MKDIR_P) $(top_builddir)/release
-	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(BITCOIND_BIN) $(top_builddir)/release
-	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(BITCOIN_QT_BIN) $(top_builddir)/release
-	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(BITCOIN_CLI_BIN) $(top_builddir)/release
-	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(MULTICHAIND_BIN) $(top_builddir)/release    # MCHN
-	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(MULTICHAIND_COLD_BIN) $(top_builddir)/release    # MCHN
-	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(MULTICHAI_CLI_BIN) $(top_builddir)/release  # MCHN
-	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(MULTICHAI_UTIL_BIN) $(top_builddir)/release # MCHN
+	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(HDACD_BIN) $(top_builddir)/release
+	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(HDACD_COLD_BIN) $(top_builddir)/release
+	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(HDAC_CLI_BIN) $(top_builddir)/release
+	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(HDAC_UTIL_BIN) $(top_builddir)/release
 	@test -f $(MAKENSIS) && $(MAKENSIS) $(top_builddir)/share/setup.nsi || \
 	  echo error: could not build $@
 
@@ -134,30 +122,18 @@ if TARGET_WINDOWS
 deploy: $(BITCOIN_WIN_INSTALLER)
 endif
 
-$(BITCOIN_QT_BIN): FORCE
-	$(MAKE) -C src qt/$(@F)
-
-$(BITCOIND_BIN): FORCE
+$(HADCD_BIN): FORCE
 	$(MAKE) -C src $(@F)
 
-$(BITCOIN_CLI_BIN): FORCE
+$(HDACD_COLD_BIN): FORCE
 	$(MAKE) -C src $(@F)
 
-# MCHN START
-
-$(MULTICHAIND_BIN): FORCE
+$(HDAC_CLI_BIN): FORCE
 	$(MAKE) -C src $(@F)
 
-$(MULTICHAIND_COLD_BIN): FORCE
+$(HDAC_UTIL_BIN): FORCE
 	$(MAKE) -C src $(@F)
 
-$(MULTICHAIN_CLI_BIN): FORCE
-	$(MAKE) -C src $(@F)
-
-$(MULTICHAIN_UTIL_BIN): FORCE
-	$(MAKE) -C src $(@F)
-
-# MCHN END
 
 if USE_LCOV
 

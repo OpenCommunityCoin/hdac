@@ -28,7 +28,7 @@ LIBBITCOIN_COMMON=libbitcoin_common.a
 LIBBITCOIN_CLI=libbitcoin_cli.a
 LIBBITCOIN_UTIL=libbitcoin_util.a
 LIBBITCOIN_CRYPTO=crypto/libbitcoin_crypto.a
-LIBBITCOIN_MULTICHAIN=multichain/libbitcoin_multichain.a
+LIBBITCOIN_HDAC=hdac/libbitcoin_hdac.a
 LIBBITCOIN_UNIVALUE=univalue/libbitcoin_univalue.a
 LIBBITCOINQT=qt/libbitcoinqt.a
 LIBSECP256K1=secp256k1/libsecp256k1.la
@@ -40,7 +40,7 @@ $(LIBSECP256K1): $(wildcard secp256k1/src/*) $(wildcard secp256k1/include/*)
 # But to build the less dependent modules first, we manually select their order here:
 EXTRA_LIBRARIES = \
   crypto/libbitcoin_crypto.a \
-  multichain/libbitcoin_multichain.a \
+  hdac/libbitcoin_hdac.a \
   libbitcoin_util.a \
   libbitcoin_common.a \
   univalue/libbitcoin_univalue.a \
@@ -62,13 +62,11 @@ bin_PROGRAMS =
 TESTS =
 
 if BUILD_BITCOIND
-#  bin_PROGRAMS += bitcoind multichaind						# MCHN
-  bin_PROGRAMS += multichaind multichaind-cold					# MCHN
+  bin_PROGRAMS += hdacd hdacd-cold
 endif
 
 if BUILD_BITCOIN_UTILS
-#  bin_PROGRAMS += multichain-util multichain-cli bitcoin-cli bitcoin-tx		# MCHN
-  bin_PROGRAMS += multichain-util multichain-cli 		# MCHN
+  bin_PROGRAMS += hdac-util hdac-cli
 endif
 
 .PHONY: FORCE
@@ -147,6 +145,29 @@ BITCOIN_CORE_H = \
   wallet/wallet_ismine.h \
   wallet/walletdb.h \
   compat/sanity.h
+  
+CRYPTO_LYRA2RE = \
+  crypto/Lyra2RE/Lyra2RE.c \
+  crypto/Lyra2RE/Lyra2RE.h \
+  crypto/Lyra2RE/Lyra2.c \
+  crypto/Lyra2RE/Lyra2.h \
+  crypto/Lyra2RE/Sponge.c \
+  crypto/Lyra2RE/Sponge.h \
+  crypto/Lyra2RE/blake.c \
+  crypto/Lyra2RE/sph_blake.h \
+  crypto/Lyra2RE/groestl.c \
+  crypto/Lyra2RE/sph_groestl.h \
+  crypto/Lyra2RE/keccak.c \
+  crypto/Lyra2RE/sph_keccak.h \
+  crypto/Lyra2RE/skein.c \
+  crypto/Lyra2RE/sph_skein.h \
+  crypto/Lyra2RE/cubehash.c \
+  crypto/Lyra2RE/sph_cubehash.h \
+  crypto/Lyra2RE/bmw.c \
+  crypto/Lyra2RE/sph_bmw.h \
+  crypto/Lyra2RE/sph_types.h \
+  crypto/scrypt.cpp \
+  crypto/scrypt.h 
 
 JSON_H = \
   json/json_spirit.h \
@@ -157,8 +178,7 @@ JSON_H = \
   json/json_spirit_utils.h \
   json/json_spirit_value.h \
   json/json_spirit_writer.h \
-  json/json_spirit_writer_template.h \
-  json_spirit_ubjson.h
+  json/json_spirit_writer_template.h
 
 obj/build.h: FORCE
 	@$(MKDIR_P) $(builddir)/obj
@@ -177,10 +197,9 @@ libbitcoin_server_a_SOURCES = \
   core/init.cpp \
   storage/leveldbwrapper.cpp \
   core/main.cpp \
-  protocol/multichaintx.cpp \
-  protocol/multichainblock.cpp \
-  custom/custom_server.cpp \
-  protocol/handshake.cpp \
+  protocol/hdac/hdactx.cpp \
+  protocol/hdac/hdacblock.cpp \
+  protocol/hdac/handshake.cpp \
   chain/merkleblock.cpp \
   miner/miner.cpp \
   net/net.cpp \
@@ -189,7 +208,6 @@ libbitcoin_server_a_SOURCES = \
   net/rest.cpp \
   utils/utilparse.cpp \
   json/json_spirit_ubjson.cpp \
-  rpc/rpcrawdata.cpp \
   rpc/rpcutils.cpp \
   rpc/rpchelp.cpp \
   rpc/rpcblockchain.cpp \
@@ -202,6 +220,8 @@ libbitcoin_server_a_SOURCES = \
   utils/timedata.cpp \
   storage/txdb.cpp \
   chain/txmempool.cpp \
+  chain/epow.cpp \
+  $(CRYPTO_LYRA2RE) \
   $(JSON_H) \
   $(BITCOIN_CORE_H)
 
@@ -244,19 +264,17 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/hmac_sha512.h \
   crypto/sha1.h \
   crypto/ripemd160.h
-
-# multichain library
-multichain_libbitcoin_multichain_a_CPPFLAGS = $(BITCOIN_CONFIG_INCLUDES)
-multichain_libbitcoin_multichain_a_SOURCES = \
+  
+# hdac library
+hdac_libbitcoin_hdac_a_CPPFLAGS = $(BITCOIN_CONFIG_INCLUDES)
+hdac_libbitcoin_hdac_a_SOURCES = \
   utils/utility.cpp \
   utils/systemdependent.cpp \
   utils/tools.cpp \
   utils/utilwrapper.cpp \
   version/version.cpp \
-  custom/custom.cpp \
-  custom/custom_multichain.cpp \
-  chainparams/params.cpp \
-  protocol/multichainscript.cpp \
+  chainparams/hdac/params.cpp \
+  protocol/hdac/hdacscript.cpp \
   utils/dbwrapper.cpp \
   wallet/wallettxdb.cpp \
   permissions/permission.cpp \
@@ -294,6 +312,7 @@ libbitcoin_common_a_SOURCES = \
   script/sign.cpp \
   script/standard.cpp \
   script/script_error.cpp \
+  $(CRYPTO_LYRA2RE) \
   $(BITCOIN_CORE_H)
 
 # util: shared between all executables.
@@ -328,156 +347,82 @@ libbitcoin_cli_a_SOURCES = \
   $(BITCOIN_CORE_H)
 
 nodist_libbitcoin_util_a_SOURCES = $(srcdir)/obj/build.h
-#
 
-# bitcoind binary #
-#bitcoind_LDADD = \
+#---------------------------------------------------------------------------
+
+
+# hdacd binary #								
+hdacd_LDADD = \
   $(LIBBITCOIN_SERVER) \
   $(LIBBITCOIN_COMMON) \
   $(LIBBITCOIN_UNIVALUE) \
   $(LIBBITCOIN_WALLET) \
-  $(LIBBITCOIN_MULTICHAIN) \
+  $(LIBBITCOIN_HDAC) \
   $(LIBBITCOIN_UTIL) \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBLEVELDB) \
   $(LIBMEMENV) \
   $(LIBSECP256K1)
 
-#if ENABLE_WALLET
-#bitcoind_LDADD += libbitcoin_wallet.a
-#endif
-#bitcoind_LDADD += multichain/libbitcoin_multichain.a
-#bitcoind_SOURCES = bitcoind.cpp chainparams/buildgenesis.cpp
-#
+hdacd_SOURCES = hdac/hdacd.cpp rpc/rpclist.cpp chainparams/buildgenesis.cpp
 
 if TARGET_WINDOWS
-#bitcoind_SOURCES += bitcoind-res.rc
+hdacd_SOURCES += hdacd-res.rc
 endif
 
-#bitcoind_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS)
-#bitcoind_CPPFLAGS = $(BITCOIN_INCLUDES)
-#bitcoind_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
+hdacd_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS)
+hdacd_CPPFLAGS = $(BITCOIN_INCLUDES)
+hdacd_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
-# bitcoin-cli binary #
-#bitcoin_cli_LDADD = \
+# hdacd-cold binary #								
+hdacd_cold_LDADD = \
+  $(LIBBITCOIN_SERVER) \
+  $(LIBBITCOIN_COMMON) \
+  $(LIBBITCOIN_UNIVALUE) \
+  $(LIBBITCOIN_WALLET) \
+  $(LIBBITCOIN_HDAC) \
+  $(LIBBITCOIN_UTIL) \
+  $(LIBBITCOIN_CRYPTO) \
+  $(LIBLEVELDB) \
+  $(LIBMEMENV) \
+  $(LIBSECP256K1)
+
+
+hdacd_cold_SOURCES = hdac/hdacd-cold.cpp core/init-cold.cpp rpc/rpclist-cold.cpp chainparams/buildgenesis.cpp
+
+if TARGET_WINDOWS
+hdacd_cold_SOURCES += hdacd-cold-res.rc
+endif
+
+hdacd_cold_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS)
+hdacd_cold_CPPFLAGS = $(BITCOIN_INCLUDES)
+hdacd_cold_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
+
+# hdac-cli binary #
+hdac_cli_LDADD = \
   $(LIBBITCOIN_CLI) \
   $(LIBBITCOIN_UTIL) \
-  $(LIBBITCOIN_MULTICHAIN) \
+  $(LIBBITCOIN_HDAC) \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBLEVELDB) \
   $(BOOST_LIBS) \
   $(SSL_LIBS) \
   $(CRYPTO_LIBS)
 
-#bitcoin_cli_SOURCES = \
-  bitcoin-cli.cpp
+hdac_cli_SOURCES =  hdac/hdac-cli.cpp
 
-#bitcoin_cli_CPPFLAGS = $(BITCOIN_INCLUDES)
-#
-
-# bitcoin-tx binary #
-#bitcoin_tx_LDADD = \
-  $(LIBBITCOIN_COMMON) \
-  $(LIBBITCOIN_UNIVALUE) \
-  $(LIBBITCOIN_MULTICHAIN) \
-  $(LIBBITCOIN_UTIL) \
-  $(LIBBITCOIN_CRYPTO) \
-  $(LIBLEVELDB) \
-  $(LIBSECP256K1) \
-  $(BOOST_LIBS) \
-  $(CRYPTO_LIBS)
-
-#bitcoin_tx_SOURCES = bitcoin-tx.cpp 
-#bitcoin_tx_CPPFLAGS = $(BITCOIN_INCLUDES)
-#
-#bitcoin_tx_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
-
-if TARGET_WINDOWS
-#bitcoin_cli_SOURCES += bitcoin-cli-res.rc
-endif
-#bitcoin_cli_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
-
-# MCHN START
-
-# multichaind binary #								
-multichaind_LDADD = \
-  $(LIBBITCOIN_SERVER) \
-  $(LIBBITCOIN_COMMON) \
-  $(LIBBITCOIN_UNIVALUE) \
-  $(LIBBITCOIN_WALLET) \
-  $(LIBBITCOIN_MULTICHAIN) \
-  $(LIBBITCOIN_UTIL) \
-  $(LIBBITCOIN_CRYPTO) \
-  $(LIBLEVELDB) \
-  $(LIBMEMENV) \
-  $(LIBSECP256K1)
-
-#if ENABLE_WALLET
-#multichaind_LDADD += libbitcoin_wallet.a
-#endif
-multichaind_SOURCES = multichain/multichaind.cpp rpc/rpclist.cpp chainparams/buildgenesis.cpp
+hdac_cli_CPPFLAGS = $(BITCOIN_INCLUDES)
 #
 
 if TARGET_WINDOWS
-multichaind_SOURCES += multichaind-res.rc
+hdac_cli_SOURCES += hdac-cli-res.rc
 endif
+hdac_cli_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
-multichaind_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS)
-multichaind_CPPFLAGS = $(BITCOIN_INCLUDES)
-multichaind_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
-
-# multichaind-cold binary #								
-multichaind_cold_LDADD = \
-  $(LIBBITCOIN_SERVER) \
-  $(LIBBITCOIN_COMMON) \
+# hdac-util binary #
+hdac_util_LDADD = \
   $(LIBBITCOIN_UNIVALUE) \
-  $(LIBBITCOIN_WALLET) \
-  $(LIBBITCOIN_MULTICHAIN) \
-  $(LIBBITCOIN_UTIL) \
-  $(LIBBITCOIN_CRYPTO) \
-  $(LIBLEVELDB) \
-  $(LIBMEMENV) \
-  $(LIBSECP256K1)
-
-#if ENABLE_WALLET
-#multichaind_cold_LDADD += libbitcoin_wallet.a
-#endif
-multichaind_cold_SOURCES = multichain/multichaind-cold.cpp core/init-cold.cpp rpc/rpclist-cold.cpp chainparams/buildgenesis.cpp
-#
-
-if TARGET_WINDOWS
-multichaind_cold_SOURCES += multichaind-cold-res.rc
-endif
-
-multichaind_cold_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS)
-multichaind_cold_CPPFLAGS = $(BITCOIN_INCLUDES)
-multichaind_cold_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
-
-# multichain-cli binary #
-multichain_cli_LDADD = \
-  $(LIBBITCOIN_CLI) \
-  $(LIBBITCOIN_UTIL) \
-  $(LIBBITCOIN_MULTICHAIN) \
-  $(LIBBITCOIN_CRYPTO) \
-  $(LIBLEVELDB) \
-  $(BOOST_LIBS) \
-  $(SSL_LIBS) \
-  $(CRYPTO_LIBS)
-
-multichain_cli_SOURCES =  multichain/multichain-cli.cpp
-
-multichain_cli_CPPFLAGS = $(BITCOIN_INCLUDES)
-#
-
-if TARGET_WINDOWS
-multichain_cli_SOURCES += multichain-cli-res.rc
-endif
-multichain_cli_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
-
-# multichain-util binary #
-multichain_util_LDADD = \
-  $(LIBBITCOIN_UNIVALUE) \
-  $(LIBBITCOIN_MULTICHAIN) \
+  $(LIBBITCOIN_HDAC) \
   $(LIBBITCOIN_COMMON) \
   $(LIBBITCOIN_UTIL) \
   $(LIBBITCOIN_CRYPTO) \
@@ -486,18 +431,17 @@ multichain_util_LDADD = \
   $(BOOST_LIBS) \
   $(CRYPTO_LIBS)
 
-multichain_util_SOURCES = multichain/multichain-util.cpp chainparams/buildgenesis.cpp
+hdac_util_SOURCES = hdac/hdac-util.cpp chainparams/buildgenesis.cpp
 
-multichain_util_CPPFLAGS = $(BITCOIN_INCLUDES)
-#
+hdac_util_CPPFLAGS = $(BITCOIN_INCLUDES)
+
 if TARGET_WINDOWS
-multichain_util_SOURCES += multichain-util-res.rc
+hdac_util_SOURCES += hdac-util-res.rc
 endif
-multichain_util_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
+hdac_util_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
 
-# MCHN END
-
+#---------------------------------------------------------------------------
 
 
 
@@ -516,10 +460,8 @@ libbitcoinconsensus_la_SOURCES = \
   utils/utilwrapper.cpp \
   chainparams/buildgenesis.cpp \
   version/version.cpp \
-  custom/custom.cpp \
-  custom/custom_multichain.cpp \
   chainparams/chainparams.cpp \
-  protocol/multichainscript.cpp \
+  protocol/hdac/hdacscript.cpp \
   utils/dbwrapper.cpp \
   wallet/wallettxdb.cpp \
   permissions/permission.cpp \
@@ -530,7 +472,7 @@ libbitcoinconsensus_la_SOURCES = \
   script/interpreter.cpp \
   script/bitcoinconsensus.cpp \
   structs/uint256.cpp \
-  utils/utilstrencodings.cpp
+  utils/utilstrencodings.cpp  
 
 if GLIBC_BACK_COMPAT
   libbitcoinconsensus_la_SOURCES += compat/glibc_compat.cpp
@@ -566,14 +508,3 @@ clean-local:
 	@test -f $(PROTOC)
 	$(AM_V_GEN) $(PROTOC) --cpp_out=$(@D) --proto_path=$(abspath $(<D) $<)
 
-#if ENABLE_TESTS
-#include Makefile.test.include
-#endif
-
-#if ENABLE_QT
-#include Makefile.qt.include
-#endif
-
-#if ENABLE_QT_TESTS
-#include Makefile.qttest.include
-#endif

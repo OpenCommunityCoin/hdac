@@ -116,10 +116,10 @@ Object ExchangeAssetEntry(uint256 hash,const CTxOut txout,mc_Script *lpScript,mc
                 address_found=true;
                 if(mc_gState->m_Permissions->CanReceive(NULL,(unsigned char*)(lpKeyID)) == 0)
                 {
-                    if(strError.size() == 0)
-                    {
-                        strError="Address doesn't have receive permission";                                                        
-                    }
+                	if(strError.size() == 0)
+                	{
+                		strError="Address doesn't have receive permission";
+                	}
                 }
             }
             else
@@ -214,7 +214,6 @@ Object DecodeExchangeTransaction(const CTransaction tx,int verbose,int64_t& nati
     strError="";
     native_balance=0;
     bool can_disable=false;
-    uint32_t format;
     
     vector <CTxOut> input_txouts;
     vector <string> input_errors;
@@ -223,7 +222,7 @@ Object DecodeExchangeTransaction(const CTransaction tx,int verbose,int64_t& nati
     asset_amounts->Clear();
     
     mc_Script *lpScript=mc_gState->m_TmpBuffers->m_RpcScript4;
-    lpScript->Clear();    
+    lpScript->Clear();
 
     AcceptExchange(tx, input_txouts, input_errors,strError);
 
@@ -311,8 +310,6 @@ Object DecodeExchangeTransaction(const CTransaction tx,int verbose,int64_t& nati
 
                 lpScript->Clear();
                 lpScript->SetScript((unsigned char*)(&pc1[0]),(size_t)(script1.end()-pc1),MC_SCR_TYPE_SCRIPTPUBKEY);                
-                
-                lpScript->ExtractAndDeleteDataFormat(&format);
                 
                 if(lpScript->GetNumElements()<=1)
                 {
@@ -415,10 +412,7 @@ Object DecodeExchangeTransaction(const CTransaction tx,int verbose,int64_t& nati
             nBytes+=4+36+1+73+1+65+4+8+1+24+4+ask.size()*(mc_gState->m_NetworkParams->m_AssetRefSize+MC_AST_ASSET_QUANTITY_SIZE)+1+32;
             required_fee=pwalletMain->GetMinimumFee(nBytes,1,mempool);
             dust=-1;
-            if(mc_gState->m_NetworkParams->IsProtocolMultichain())
-            {
-                dust=MCP_MINIMUM_PER_OUTPUT;
-            }            
+            dust=MCP_MINIMUM_PER_OUTPUT;
             if(dust<0)
             {
                 size_t nSize = GetSerializeSize(SER_DISK,0)+148u;
@@ -920,7 +914,7 @@ Value completerawexchange(const json_spirit::Array& params, bool fHelp)
     if(params.size() > 4)
     {    
         mc_EntityDetails found_entity;
-        CScript scriptOpReturn=ParseRawMetadata(params[4],MC_DATA_API_PARAM_TYPE_SIMPLE,NULL,&found_entity);
+        CScript scriptOpReturn=ParseRawMetadata(params[4],0x0002,NULL,&found_entity);
         
         if(found_entity.GetEntityType() == MC_ENT_TYPE_STREAM)
         {        

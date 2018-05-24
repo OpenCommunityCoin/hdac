@@ -1,14 +1,14 @@
-*.tar.gz
+#*.tar.gz
 
 *.exe
 src/bitcoin
 src/bitcoind
 src/bitcoin-cli
 src/bitcoin-tx
-src/multichain-cli
-src/multichain-util
-src/multichaind
-src/multichaind-cold
+src/hdac-cli
+src/hdac-util
+src/hdacd
+src/hdacd-cold
 src/test/test_bitcoin
 src/qt/test/test_bitcoin-qt
 
@@ -29,6 +29,7 @@ build-aux/m4/ltversion.m4
 build-aux/missing
 build-aux/compile
 build-aux/test-driver
+depends/x86_64-unknown-linux-gnu/
 config.log
 config.status
 configure

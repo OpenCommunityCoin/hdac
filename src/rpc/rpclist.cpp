@@ -3,6 +3,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #if defined(HAVE_CONFIG_H)
 #include "config/bitcoin-config.h"
@@ -69,7 +71,8 @@ static const CRPCCommand vRPCCommands[] =
     { "network",            "getconnectioncount",     &getconnectioncount,     true,      false,      false },
     { "network",            "getnettotals",           &getnettotals,           true,      true,       false },
     { "network",            "getpeerinfo",            &getpeerinfo,            true,      false,      false },
-    { "network",            "ping",                   &ping,                   true,      false,      false },
+    { "network",            "getchainblockheight",     &getchainblockheight,     true,      false,      false },
+//    { "network",            "ping",                   &ping,                   true,      false,      false },
 
     /* Block chain and UTXO */
     { "blockchain",         "getblockchaininfo",      &getblockchaininfo,      true,      false,      false },
@@ -101,7 +104,7 @@ static const CRPCCommand vRPCCommands[] =
     { "mining",             "getnetworkhashps",       &getnetworkhashps,       true,      false,      false },
     { "mining",             "prioritisetransaction",  &prioritisetransaction,  true,      false,      false },
     { "mining",             "submitblock",            &submitblock,            true,      true,       false },
-
+    { "mining",             "getblockwindowsize",     &getblockwindowsize,     true,      false,      false },	// HDAC
 #ifdef ENABLE_WALLET
     /* Coin generation */
     { "generating",         "getgenerate",            &getgenerate,            true,      false,      false },
@@ -135,9 +138,6 @@ static const CRPCCommand vRPCCommands[] =
     { "hidden",             "invalidateblock",        &invalidateblock,        true,      true,       false },
     { "hidden",             "reconsiderblock",        &reconsiderblock,        true,      true,       false },
     { "hidden",             "setmocktime",            &setmocktime,            true,      false,      false },
-    { "hidden",             "data-all",               &purehelpitem,           true,      true,       true },
-    { "hidden",             "data-with",               &purehelpitem,           true,      true,       true },
-    { "hidden",             "addresses-all",          &purehelpitem,           true,      true,       true },
 
 #ifdef ENABLE_WALLET
     /* Wallet */
@@ -231,7 +231,6 @@ static const CRPCCommand vRPCCommands[] =
     { "wallet",             "listassettransactions",  &listassettransactions,         false,     false,      true },
     { "wallet",             "getassettransaction",    &getassettransaction,         false,     false,      true },
     { "wallet",             "getstreamitem",          &getstreamitem,         false,     false,      true },
-    { "wallet",             "liststreamtxitems",      &liststreamtxitems,         false,     false,      true },
     { "wallet",             "liststreamitems",        &liststreamitems,         false,     false,      true },
     { "wallet",             "liststreamkeyitems",     &liststreamkeyitems,      false,     false,      true },
     { "wallet",             "liststreampublisheritems",&liststreampublisheritems,false,     false,      true },
@@ -239,8 +238,6 @@ static const CRPCCommand vRPCCommands[] =
     { "wallet",             "liststreampublishers",   &liststreampublishers,  false,     false,      true },
     { "wallet",             "gettxoutdata",           &gettxoutdata,           false,     false,      true },
     { "wallet",             "liststreamblockitems",   &liststreamblockitems,    false,      false,      false },
-    { "wallet",             "getstreamkeysummary",    &getstreamkeysummary,        false,     false,      true },
-    { "wallet",             "getstreampublishersummary",   &getstreampublishersummary,        false,     false,      true },
     
 /* MCHN END */    
     { "wallet",             "setaccount",             &setaccount,             true,      false,      true },

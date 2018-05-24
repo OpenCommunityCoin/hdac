@@ -215,20 +215,10 @@ unsigned int CScript::GetSigOpCount(const CScript& scriptSig) const
 bool CScript::IsPayToScriptHash() const
 {
     // Extra-fast test for pay-to-script-hash CScripts:
-//    return (this->size() == 23 &&
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain())
-    {
-        return (this->size() >= 23 &&
-                this->at(0) == OP_HASH160 &&
-                this->at(1) == 0x14 &&
-                this->at(22) == OP_EQUAL);
-    }
-    
-        return (this->size() == 23 &&
-                this->at(0) == OP_HASH160 &&
-                this->at(1) == 0x14 &&
-                this->at(22) == OP_EQUAL);
-    
+    return (this->size() >= 23 &&
+            this->at(0) == OP_HASH160 &&
+            this->at(1) == 0x14 &&
+            this->at(22) == OP_EQUAL);
 }
 
 bool CScript::IsPushOnly() const
@@ -286,8 +276,6 @@ std::string CScript::ToString() const
     }
     return str;
 }
-
-/* MCHN START */
 
 CScript CScript::RemoveOpDrops() const
 {
@@ -351,5 +339,3 @@ CScript CScript::RemoveOpDrops() const
     
     return scriptOutput;    
 }
-
-/* MCHN END */

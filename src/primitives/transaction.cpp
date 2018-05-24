@@ -57,12 +57,10 @@ uint256 CTxOut::GetHash() const
 
 std::string CTxOut::ToString() const
 {
-/* MCHN START */    
     if(COIN == 0)
     {
         return strprintf("CTxOut(nValue=%d.%08d, scriptPubKey=%s)", nValue, nValue, scriptPubKey.ToString().substr(0,30));        
     }
-/* MCHN END */    
     return strprintf("CTxOut(nValue=%d.%08d, scriptPubKey=%s)", nValue / COIN, nValue % COIN, scriptPubKey.ToString().substr(0,30));
 }
 

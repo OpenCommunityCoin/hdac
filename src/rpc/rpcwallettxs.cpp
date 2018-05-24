@@ -81,7 +81,7 @@ int GetInputOffer(const CWalletTx& wtx, const set<CTxDestination>* addresses,con
             if(IsTxOutMineAndInList(pwalletMain,prevout,addresses,filter))
             {
                 string strFailReason;
-                if(ParseMultichainTxOutToBuffer(txin.prevout.hash,prevout,amounts,lpScript,NULL,NULL,strFailReason))
+                if(ParseHdacTxOutToBuffer(txin.prevout.hash,prevout,amounts,lpScript,NULL,NULL,strFailReason))
                 {
                     nAmount+=prevout.nValue;
                     nIsMineCount++;
@@ -176,9 +176,6 @@ Object ListWalletTransactions(const CWalletTx& wtx, bool fLong, const isminefilt
     Array aPermissions;
     Array aMetaData;
     Array aItems;
-    uint32_t format;
-    Array aFormatMetaData;
-    vector<Array> aFormatMetaDataPerOutput;
 
     nIsFromMeCount=GetInputOffer(wtx,addresses,filter,nAmount,amounts,lpScript,&from_addresses,&my_addresses);
     nIsToMeCount=0;
@@ -190,8 +187,6 @@ Object ListWalletTransactions(const CWalletTx& wtx, bool fLong, const isminefilt
         quantity=-quantity;
         mc_SetABQuantity(amounts->GetRow(i),quantity);        
     }
-    
-    aFormatMetaDataPerOutput.resize(wtx.vout.size());
     
     new_entity_type=MC_ENT_TYPE_NONE;
     nIsToMeCount=0;
@@ -212,7 +207,7 @@ Object ListWalletTransactions(const CWalletTx& wtx, bool fLong, const isminefilt
             {
                 fIsMine=true;
                 nIsToMeCount++;
-                ParseMultichainTxOutToBuffer(wtx.GetHash(),txout,amounts,lpScript,NULL,&required,strFailReason);
+                ParseHdacTxOutToBuffer(wtx.GetHash(),txout,amounts,lpScript,NULL,&required,strFailReason);
 //                CreateAssetBalanceList(txout,amounts,lpScript,&required);
                 nAmount+=txout.nValue;
             }
@@ -248,8 +243,6 @@ Object ListWalletTransactions(const CWalletTx& wtx, bool fLong, const isminefilt
             lpScript->Clear();
             lpScript->SetScript((unsigned char*)(&pc2[0]),(size_t)(script2.end()-pc2),MC_SCR_TYPE_SCRIPTPUBKEY);
             
-        	lpScript->ExtractAndDeleteDataFormat(&format);
-            
             size_t elem_size;
             const unsigned char *elem;
 
@@ -258,22 +251,15 @@ Object ListWalletTransactions(const CWalletTx& wtx, bool fLong, const isminefilt
                 if(lpScript->GetNumElements()==1)
                 {
                     elem = lpScript->GetData(lpScript->GetNumElements()-1,&elem_size);
-//                    aMetaData.push_back(OpReturnEntry(elem,elem_size,wtx.GetHash(),i));
-                    Value metadata=OpReturnFormatEntry(elem,elem_size,wtx.GetHash(),i,format,NULL);
-                    aFormatMetaData.push_back(metadata);
-                    aFormatMetaDataPerOutput[i].push_back(metadata);
+                    aMetaData.push_back(OpReturnEntry(elem,elem_size,wtx.GetHash(),i));
                 }                        
             }
             else
             {
-                if(mc_gState->m_Compatibility & MC_VCM_1_0)
+                elem = lpScript->GetData(lpScript->GetNumElements()-1,&elem_size);
+                if(elem_size)
                 {
-                    elem = lpScript->GetData(lpScript->GetNumElements()-1,&elem_size);
-                    if(elem_size)
-                    {
-    //                    aMetaData.push_back(OpReturnEntry(elem,elem_size,wtx.GetHash(),i));
-                        aFormatMetaData.push_back(OpReturnFormatEntry(elem,elem_size,wtx.GetHash(),i,format,NULL));
-                    }
+                    aMetaData.push_back(OpReturnEntry(elem,elem_size,wtx.GetHash(),i));
                 }
                 
                 lpScript->SetElement(0);
@@ -312,7 +298,7 @@ Object ListWalletTransactions(const CWalletTx& wtx, bool fLong, const isminefilt
             string strFailReason;
             int required=0;
             amounts->Clear();
-//            ParseMultichainTxOutToBuffer(wtx.GetHash(),txout,amounts,lpScript,NULL,&required,strFailReason);
+            //ParseHdacTxOutToBuffer(wtx.GetHash(),txout,amounts,lpScript,NULL,&required,strFailReason);
             CreateAssetBalanceList(txout,amounts,lpScript,&required);
             if(required & (MC_PTP_ADMIN | MC_PTP_ACTIVATE))
             {
@@ -384,18 +370,7 @@ Object ListWalletTransactions(const CWalletTx& wtx, bool fLong, const isminefilt
                 aTxOutItems.push_back(data_item_entry);
             }
             Object txout_entry=TxOutEntry(wtx.vout[i],i,TxIn,wtx.GetHash(),amounts,lpScript);
-            if( (aTxOutItems.size() > 0) || (mc_gState->m_Compatibility & MC_VCM_1_0) )
-            {
-                txout_entry.push_back(Pair("items", aTxOutItems));
-            }
-            if( (mc_gState->m_Compatibility & MC_VCM_1_0) == 0)
-            {
-                if(aFormatMetaDataPerOutput[i].size())
-                {
-                    txout_entry.push_back(Pair("data", aFormatMetaDataPerOutput[i]));                    
-                }
-            }
-            
+            txout_entry.push_back(Pair("items", aTxOutItems));
             vout.push_back(txout_entry);
         }
     }        
@@ -454,8 +429,7 @@ Object ListWalletTransactions(const CWalletTx& wtx, bool fLong, const isminefilt
         }        
     }
     entry.push_back(Pair("items", aItems));
-        
-    entry.push_back(Pair("data", aFormatMetaData));
+    entry.push_back(Pair("data", aMetaData));
     
     WalletTxToJSON(wtx, entry, true);
 
@@ -501,7 +475,7 @@ Value listwallettransactions(const Array& params, bool fHelp)
     asset_amounts->Clear();
     
     mc_Script *lpScript=mc_gState->m_TmpBuffers->m_RpcScript3;
-    lpScript->Clear();    
+    lpScript->Clear();
     
     mc_Buffer *entity_rows=mc_gState->m_TmpBuffers->m_RpcEntityRows;
     entity_rows->Clear();
@@ -602,7 +576,7 @@ Value listaddresstransactions(const Array& params, bool fHelp)
     asset_amounts->Clear();
     
     mc_Script *lpScript=mc_gState->m_TmpBuffers->m_RpcScript3;
-    lpScript->Clear();    
+    lpScript->Clear();
     
     vector<CTxDestination> fromaddresses;        
     
@@ -633,7 +607,7 @@ Value listaddresstransactions(const Array& params, bool fHelp)
     
     mc_Buffer *entity_rows=mc_gState->m_TmpBuffers->m_RpcEntityRows;
     entity_rows->Clear();
-
+    
     Array ret;
     if(mc_gState->m_WalletMode & MC_WMD_ADDRESS_TXS)
     {
@@ -795,7 +769,7 @@ Value getaddresstransaction(const Array& params, bool fHelp)
     asset_amounts->Clear();
     
     mc_Script *lpScript=mc_gState->m_TmpBuffers->m_RpcScript3;
-    lpScript->Clear();    
+    lpScript->Clear();
     
     vector<CTxDestination> fromaddresses;        
     

@@ -70,10 +70,9 @@ enum
     // a mandatory flag applied to scripts in a block. NOPs that are not
     // executed, e.g.  within an unexecuted IF ENDIF block, are *not* rejected.
     SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS  = (1U << 7),
-/* MCHN START */
+
     // Skips verifying of the send permission
     SCRIPT_VERIFY_SKIP_SEND_PERMISSION_CHECK   = (1U << 24)             
-/* MCHN END */
 };
 
 uint256 SignatureHash(const CScript &scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType);
@@ -81,10 +80,7 @@ uint256 SignatureHash(const CScript &scriptCode, const CTransaction& txTo, unsig
 class BaseSignatureChecker
 {
 public:
-/* MCHN START */    
-//    virtual bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode) const
     virtual bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, bool& CheckSendPermission) const
-/* MCHN END */    
     {
         return false;
     }
@@ -103,10 +99,7 @@ protected:
 
 public:
     TransactionSignatureChecker(const CTransaction* txToIn, unsigned int nInIn) : txTo(txToIn), nIn(nInIn) {}
-/* MCHN START */    
-//    bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode) const;
     bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, bool& CheckSendPermission) const;
-/* MCHN END */    
 };
 
 class MutableTransactionSignatureChecker : public TransactionSignatureChecker

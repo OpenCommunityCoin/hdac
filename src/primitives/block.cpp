@@ -15,6 +15,34 @@ uint256 CBlockHeader::GetHash() const
     return Hash(BEGIN(nVersion), END(nNonce));
 }
 
+uint256 CBlockHeader::GetPoWHash(int nHeight, bool bLyra2REv2) const
+{
+    uint256 thash;
+
+    if(nHeight<0)
+    {
+    	if(bLyra2REv2){
+			lyra2re2_hash(BEGIN(nVersion), BEGIN(thash));
+		}
+		else{
+			thash = Hash(BEGIN(nVersion), END(nNonce));
+		}
+		return thash;
+    }
+    else if (nHeight==0)
+    {
+    	bLyra2REv2 = false;
+    }
+
+    if(bLyra2REv2){
+        lyra2re2_hash(BEGIN(nVersion), BEGIN(thash));
+    }
+    else{
+    	thash = Hash(BEGIN(nVersion), END(nNonce));
+    }
+    return thash;
+}
+
 uint256 CBlock::BuildMerkleTree(bool* fMutated) const
 {
     /* WARNING! If you're reading this because you're learning about crypto
@@ -56,18 +84,14 @@ uint256 CBlock::BuildMerkleTree(bool* fMutated) const
     vMerkleTree.reserve(vtx.size() * 2 + 16); // Safe upper bound for the number of total nodes.
     for (std::vector<CTransaction>::const_iterator it(vtx.begin()); it != vtx.end(); ++it)
     {
-/* MCHN START */    
         if((nMerkleTreeType == MERKLETREE_NO_COINBASE_OP_RETURN) && it->IsCoinBase())
         {
             CMutableTransaction tx=*it;
             tx.vout.clear();
             for(int i=0;i<(int)it->vout.size();i++)
             {
-//                if(it->vout[i].scriptPubKey.begin()[0] != 0x6a)
                 if(!it->vout[i].scriptPubKey.IsUnspendable())
-                {
                     tx.vout.push_back(it->vout[i]);
-                }
             }            
             vMerkleTree.push_back(tx.GetHash());
         }
@@ -75,7 +99,6 @@ uint256 CBlock::BuildMerkleTree(bool* fMutated) const
         {
             vMerkleTree.push_back(it->GetHash());
         }
-/* MCHN END */    
     }
     int j = 0;
     bool mutated = false;

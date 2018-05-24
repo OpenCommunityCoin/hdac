@@ -4,6 +4,9 @@
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
 
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
+
 #include "chainparams/chainparamsbase.h"
 
 #include "utils/util.h"
@@ -57,15 +60,13 @@ public:
 };
 static CBaseRegTestParams regTestParams;
 
-/* MCHN START */      
-
-class CBaseMultiChainParams : public CBaseTestNetParams
+class CBaseHdacParams : public CBaseTestNetParams
 {
 public:
-    CBaseMultiChainParams()
+    CBaseHdacParams()
     {
-        networkID = CBaseChainParams::MULTICHAIN;
-        strDataDir = "multichain";
+        networkID = CBaseChainParams::HDAC;
+        strDataDir = "hdac";	// HDAC
     }
     void setDataDir(std::string NetworkName)
     {
@@ -76,8 +77,7 @@ public:
         nRPCPort=port;
     }
 };
-static CBaseMultiChainParams multiChainParams;
-/* MCHN END */      
+static CBaseHdacParams hdacParams;
 
 
 
@@ -148,18 +148,14 @@ bool SelectBaseParamsFromCommandLine()
     return true;
 }
 
-/* MCHN START */
-
-bool SelectMultiChainBaseParams(const char *NetworkName,int RPCPort)
+bool SelectHdacBaseParams(const char *NetworkName,int RPCPort)
 {
-    multiChainParams.setDataDir(std::string(NetworkName));
-    multiChainParams.setRPCPort(RPCPort);
-    pCurrentBaseParams = &multiChainParams;
+    hdacParams.setDataDir(std::string(NetworkName));
+    hdacParams.setRPCPort(RPCPort);
+    pCurrentBaseParams = &hdacParams;
     
     return true;
 }
-
-/* MCHN END */
 
 bool AreBaseParamsConfigured()
 {

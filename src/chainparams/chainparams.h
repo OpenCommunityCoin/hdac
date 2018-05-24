@@ -161,16 +161,10 @@ void SelectParams(CBaseChainParams::Network network);
  */
 bool SelectParamsFromCommandLine();
 
-/* MCHN START */
-
-bool SelectMultiChainParams(const char *NetworkName);
-bool InitializeMultiChainParams();
-void SetMultiChainParams();
-void SetMultiChainParam(const char*param_name,int64_t value);
-void SetMultiChainRuntimeParams();
-
-
-/* MCHN END */
+bool SelectHdacParams(const char *NetworkName);
+bool InitializeHdacParams();
+void SetHdacParams();
+void SetHdacRuntimeParams();
 
 
 #endif // BITCOIN_CHAINPARAMS_H

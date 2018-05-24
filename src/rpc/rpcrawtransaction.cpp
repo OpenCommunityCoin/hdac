@@ -3,6 +3,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #include "structs/base58.h"
 #include "primitives/transaction.h"
@@ -26,7 +28,7 @@
 #include "json/json_spirit_utils.h"
 #include "json/json_spirit_value.h"
 
-#include "multichain/multichain.h"
+#include "hdac/hdac.h"
 #include "rpc/rpcutils.h"
 
 using namespace boost;
@@ -34,15 +36,14 @@ using namespace boost::assign;
 using namespace json_spirit;
 using namespace std;
 
-/* MCHN START */
 #include "utils/util.h"
 #include "utils/utilmoneystr.h"
 #include "wallet/wallettxs.h"
 
 bool OutputCanSend(COutput out);
 uint32_t mc_CheckSigScriptForMutableTx(const unsigned char *src,int size);
+Value mc_ExtractDetailsJSONObject(const unsigned char *script,uint32_t total);
 
-/* MCHN END */
 
 void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out, bool fIncludeHex)
 {
@@ -50,7 +51,6 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out, bool fIncludeH
     vector<CTxDestination> addresses;
     int nRequired;
 
-/* MCHN START */
     const CScript& scriptToShow=RemoveOpDropsIfNeeded(scriptPubKey);
     
 /*
@@ -61,7 +61,6 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out, bool fIncludeH
     out.push_back(Pair("asm", scriptToShow.ToString()));
     if (fIncludeHex)
         out.push_back(Pair("hex", HexStr(scriptToShow.begin(), scriptToShow.end())));
-/* MCHN END */
 
 
     if (!ExtractDestinations(scriptPubKey, type, addresses, nRequired)) {
@@ -101,13 +100,11 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
     }
     entry.push_back(Pair("vin", vin));
 
-/* MCHN START */    
     mc_Buffer *asset_amounts=mc_gState->m_TmpBuffers->m_RpcABBuffer2;
     asset_amounts->Clear();
     
     mc_Script *lpScript=mc_gState->m_TmpBuffers->m_RpcScript4;
-    lpScript->Clear();    
-/* MCHN END */    
+    lpScript->Clear();
     
     Array vdata;
     Array vInputCache;
@@ -124,9 +121,6 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
     uint32_t new_entity_type;
     new_entity_type=MC_ENT_TYPE_NONE;
     set<uint256> streams_already_seen;
-    uint32_t format;
-    Array aFormatMetaData;
-    Array aFullFormatMetaData;
     
     Array vout;
     for (unsigned int i = 0; i < tx.vout.size(); i++) {
@@ -138,11 +132,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
         ScriptPubKeyToJSON(txout.scriptPubKey, o, true);
         out.push_back(Pair("scriptPubKey", o));
         
-/* MCHN START */    
 // TODO too many duplicate code with ListWalletTransactions and may be AccepMultiChainTransaction
-        
-        aFormatMetaData.clear();
-        
         const CScript& script1 = tx.vout[i].scriptPubKey;        
         CScript::const_iterator pc1 = script1.begin();
         
@@ -157,64 +147,47 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
         
         if(lpScript->IsOpReturnScript())
         {
-//            int e=mc_gState->m_TmpScript->GetNumElements()-1;
-            lpScript->ExtractAndDeleteDataFormat(&format);
-            
-            int e=lpScript->GetNumElements()-1;
+            //int e=lpScript->GetNumElements()-1;
+
+            lpScript->SetElement(0);
+            err=lpScript->GetNewEntityType(&new_entity_type,&asset_update,details_script,&details_script_size);                
+            if((err == 0) && (new_entity_type == MC_ENT_TYPE_ASSET))
             {
-                if(mc_gState->m_Features->OpDropDetailsScripts())
+                if(asset_update == 0)
                 {
-            
-                    lpScript->SetElement(0);
+                    detals_script_found=true;
+                    is_issuefirst=true;
+                    *asset_name=0x00;
+                    multiple=1;
+                    value_offset=mc_FindSpecialParamInDetailsScript(details_script,details_script_size,MC_ENT_SPRM_NAME,&value_size);
+                    if(value_offset<(uint32_t)details_script_size)
+                    {
+                        memcpy(asset_name,details_script+value_offset,value_size);
+                        asset_name[value_size]=0x00;
+                    }
+                    value_offset=mc_FindSpecialParamInDetailsScript(details_script,details_script_size,MC_ENT_SPRM_ASSET_MULTIPLE,&value_size);
+                    if(value_offset<(uint32_t)details_script_size)
+                    {
+                        multiple=mc_GetLE(details_script+value_offset,value_size);
+                    }                            
+                }
+            }                            
+            else
+            {
+                err=lpScript->GetEntity(short_txid);                
+                if(err == 0)
+                {
+                    lpScript->SetElement(1);
                     err=lpScript->GetNewEntityType(&new_entity_type,&asset_update,details_script,&details_script_size);                
                     if((err == 0) && (new_entity_type == MC_ENT_TYPE_ASSET))
                     {
-                        if(asset_update == 0)
+                        if(asset_update)
                         {
                             detals_script_found=true;
-                            is_issuefirst=true;
-                            *asset_name=0x00;
-                            multiple=1;
-                            value_offset=mc_FindSpecialParamInDetailsScript(details_script,details_script_size,MC_ENT_SPRM_NAME,&value_size);
-                            if(value_offset<(uint32_t)details_script_size)
-                            {
-                                memcpy(asset_name,details_script+value_offset,value_size);
-                                asset_name[value_size]=0x00;
-                            }
-                            value_offset=mc_FindSpecialParamInDetailsScript(details_script,details_script_size,MC_ENT_SPRM_ASSET_MULTIPLE,&value_size);
-                            if(value_offset<(uint32_t)details_script_size)
-                            {
-                                multiple=mc_GetLE(details_script+value_offset,value_size);
-                            }                            
+                            is_issuemore=true;
                         }
-                    }                            
-                    else
-                    {
-                        err=lpScript->GetEntity(short_txid);                
-                        if(err == 0)
-                        {
-                            lpScript->SetElement(1);
-                            err=lpScript->GetNewEntityType(&new_entity_type,&asset_update,details_script,&details_script_size);                
-                            if((err == 0) && (new_entity_type == MC_ENT_TYPE_ASSET))
-                            {
-                                if(asset_update)
-                                {
-                                    detals_script_found=true;
-                                    is_issuemore=true;
-                                }
-                            }                                                        
-                        }                        
-                    }
-                }
-                else
-                {
-                    lpScript->SetElement(e);
-                    err=lpScript->GetAssetDetails(asset_name,&multiple,details_script,&details_script_size);
-                    if(err == 0)
-                    {
-                        detals_script_found=true;
-                    }                
-                }
+                    }                                                        
+                }                        
             }
             
             size_t elem_size;
@@ -227,25 +200,17 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
                 if(lpScript->GetNumElements()==1)
                 {
                     elem = lpScript->GetData(lpScript->GetNumElements()-1,&elem_size);
-//                    vdata.push_back(OpReturnEntry(elem,elem_size,tx.GetHash(),i));
-                    aFormatMetaData.push_back(OpReturnFormatEntry(elem,elem_size,tx.GetHash(),i,format,NULL));
-                    if(mc_gState->m_Compatibility & MC_VCM_1_0)
-                    {
-                        aFullFormatMetaData.push_back(aFormatMetaData[0]);
-                    }
+                    vdata.push_back(OpReturnEntry(elem,elem_size,tx.GetHash(),i));
                 }                        
             }
             else
             {
-                if(mc_gState->m_Compatibility & MC_VCM_1_0)
+                elem = lpScript->GetData(lpScript->GetNumElements()-1,&elem_size);
+                if(elem_size)
                 {
-                    elem = lpScript->GetData(lpScript->GetNumElements()-1,&elem_size);
-                    if(elem_size)
-                    {
-//                        vdata.push_back(OpReturnEntry(elem,elem_size,tx.GetHash(),i));
-                        aFullFormatMetaData.push_back(OpReturnFormatEntry(elem,elem_size,tx.GetHash(),i,format,NULL));
-                    }
+                    vdata.push_back(OpReturnEntry(elem,elem_size,tx.GetHash(),i));
                 }
+                
                 lpScript->SetElement(0);
                 if(lpScript->GetNewEntityType(&new_entity_type))
                 {
@@ -344,21 +309,10 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
                 }
             }
             
-            if( (assets.size() > 0) || (mc_gState->m_Compatibility & MC_VCM_1_0) )
-            {
-                out.push_back(Pair("assets", assets));
-            }
+            out.push_back(Pair("assets", assets));
         }        
         Array permissions=PermissionEntries(txout,lpScript,false);
-        if( (permissions.size() > 0) || (mc_gState->m_Compatibility & MC_VCM_1_0) )
-        {
-            out.push_back(Pair("permissions", permissions));
-        }
-        Array peroutputdata=PerOutputDataEntries(txout,lpScript,tx.GetHash(),i);
-        if(peroutputdata.size())
-        {
-            out.push_back(Pair("data", peroutputdata));
-        }
+        out.push_back(Pair("permissions", permissions));
         
         Array items;
         Value data_item_entry=DataItemEntry(tx,i,streams_already_seen, 0x03);
@@ -366,15 +320,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
         {
             items.push_back(data_item_entry);
         }
-        if( (items.size() > 0) || (mc_gState->m_Compatibility & MC_VCM_1_0) )
-        {
-            out.push_back(Pair("items", items));
-        }
-        if(aFormatMetaData.size())
-        {
-            out.push_back(Pair("data", aFormatMetaData));            
-        }
-/* MCHN END */    
+        out.push_back(Pair("items", items));
         vout.push_back(out);
     }
     entry.push_back(Pair("vout", vout));
@@ -387,9 +333,9 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
         bool is_open=false;
         if(detals_script_found)
         {
-            Value vfields;
-            vfields=mc_ExtractDetailsJSONObject(details_script,details_script_size);
-            
+        	Value vfields;
+        	vfields=mc_ExtractDetailsJSONObject(details_script,details_script_size);
+
             offset=0;
             
             while((int)offset<details_script_size)
@@ -469,9 +415,9 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
             }
             if(vfields.type() == null_type )
             {
-                vfields=details;
+            	vfields=details;
             }
-            issue.push_back(Pair("details", vfields));            
+            issue.push_back(Pair("details", vfields));
         }
         entry.push_back(Pair("issue", issue));
     }
@@ -481,11 +427,9 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
         entry.push_back(Pair("create", StreamEntry((unsigned char*)&txid,0x05)));
     }
     
-    if(mc_gState->m_Compatibility & MC_VCM_1_0)
-    {
-        entry.push_back(Pair("data", aFullFormatMetaData));
-    }
-
+    entry.push_back(Pair("data", vdata));
+    
+    
     if (hashBlock != 0) {
         entry.push_back(Pair("blockhash", hashBlock.GetHex()));
         BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
@@ -518,7 +462,6 @@ Value getrawtransaction(const Array& params, bool fHelp)
     if (!GetTransaction(hash, tx, hashBlock, true))
         throw JSONRPCError(RPC_TX_NOT_FOUND, "No information available about transaction");
 
-/* MCHN START */    
     CMutableTransaction txToShow=tx;
     
     if (GetBoolArg("-hideknownopdrops", false))
@@ -529,9 +472,7 @@ Value getrawtransaction(const Array& params, bool fHelp)
         }
     }
  
-    string strHex = EncodeHexTx(txToShow);
-/* MCHN END */    
-    
+    string strHex = EncodeHexTx(txToShow);    
 
     if (!fVerbose)
         return strHex;
@@ -570,7 +511,7 @@ Value listunspent(const Array& params, bool fHelp)
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, string("Invalid address: ")+input.get_str());
             if (setAddress.count(address))
                 throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid parameter, duplicated address: ")+input.get_str());
-            setAddress.insert(address);
+           setAddress.insert(address);
 
             dest=address.Get();
             const CKeyID *lpKeyID=boost::get<CKeyID> (&dest);
@@ -587,39 +528,34 @@ Value listunspent(const Array& params, bool fHelp)
                 }
            }
         }
-        
+
         if(setAddressUints.size())
         {
             lpSetAddressUint=&setAddressUints;
         }
     }
-/* MCHN START */        
 
     mc_Buffer *asset_amounts=mc_gState->m_TmpBuffers->m_RpcABBuffer1;
     asset_amounts->Clear();
     
     mc_Script *lpScript=mc_gState->m_TmpBuffers->m_RpcScript3;
-    lpScript->Clear();    
+    lpScript->Clear();
     
     {
         LOCK(pwalletMain->cs_wallet);
         pwalletMain->nNextUnspentOptimization=mc_TimeNowAsUInt()+GetArg("-autocombinesuspend", 15);        
     }
     
-/* MCHN END */        
     Array results;
     vector<COutput> vecOutputs;
     assert(pwalletMain != NULL);
-//    pwalletMain->AvailableCoins(vecOutputs, false);
     pwalletMain->AvailableCoins(vecOutputs, false, NULL, true, true, 0, lpSetAddressUint);
     BOOST_FOREACH(const COutput& out, vecOutputs) {
         if (out.nDepth < nMinDepth || out.nDepth > nMaxDepth)
             continue;
 
-/* MCHN START */       
         CTxOut txout;
         uint256 hash=out.GetHashAndTxOut(txout);
-/* MCHN END */       
         
         if (setAddress.size()) {
             CTxDestination address;
@@ -631,10 +567,7 @@ Value listunspent(const Array& params, bool fHelp)
         }
 
         CAmount nValue = txout.nValue;
-/* MCHN START */       
-//        const CScript& pk = out.tx->vout[out.i].scriptPubKey;
         const CScript& pk = RemoveOpDropsIfNeeded(txout.scriptPubKey);
-/* MCHN END */       
         Object entry;
         entry.push_back(Pair("txid", hash.GetHex()));
         entry.push_back(Pair("vout", out.i));
@@ -648,11 +581,8 @@ Value listunspent(const Array& params, bool fHelp)
         if (pk.IsPayToScriptHash()) {
             CTxDestination address;
             if (ExtractDestination(pk, address)) {
-/* MCHN START */                
-                                                                                // Bitcoin issue #6056 with booust 1.58 fixed in https://github.com/bitcoin/bitcoin/commit/8b08d9530b93c7a98e7387167ecd2cd5b0563bfb
-//                const CScriptID& hash = boost::get<const CScriptID&>(address);
+                // Bitcoin issue #6056 with booust 1.58 fixed in https://github.com/bitcoin/bitcoin/commit/8b08d9530b93c7a98e7387167ecd2cd5b0563bfb
                 const CScriptID& hash = boost::get<CScriptID>(address);
-/* MCHN END */                
                 CScript redeemScript;
                 if (pwalletMain->GetCScript(hash, redeemScript))
                     entry.push_back(Pair("redeemScript", HexStr(redeemScript.begin(), redeemScript.end())));
@@ -661,23 +591,15 @@ Value listunspent(const Array& params, bool fHelp)
         entry.push_back(Pair("amount",ValueFromAmount(nValue)));
         entry.push_back(Pair("confirmations",out.nDepth));
 
-/* MCHN START */        
-        if(mc_gState->m_NetworkParams->IsProtocolMultichain())
+        if(OutputCanSend(out))
         {
-            if(OutputCanSend(out))
-            {
-                entry.push_back(Pair("cansend", true));
-                entry.push_back(Pair("spendable", out.fSpendable));            
-            }
-            else
-            {
-                entry.push_back(Pair("cansend", false));
-                entry.push_back(Pair("spendable", false));                        
-            }
+            entry.push_back(Pair("cansend", true));
+            entry.push_back(Pair("spendable", out.fSpendable));            
         }
         else
         {
-            entry.push_back(Pair("spendable", out.fSpendable));
+            entry.push_back(Pair("cansend", false));
+            entry.push_back(Pair("spendable", false));                        
         }
         
         asset_amounts->Clear();
@@ -711,26 +633,14 @@ Value listunspent(const Array& params, bool fHelp)
         }
         Array permissions=PermissionEntries(txout,lpScript,false);
         entry.push_back(Pair("permissions", permissions));
-        
-        Array peroutputdata=PerOutputDataEntries(txout,lpScript,hash,out.i);
-        if(peroutputdata.size())
-        {
-            entry.push_back(Pair("data", peroutputdata));
-        }
-        
-//        entry.push_back(Pair("spendable", out.fSpendable));
-/* MCHN END */                
+        //entry.push_back(Pair("spendable", out.fSpendable));
         results.push_back(entry);
     }
 
-/* MCHN START */        
-
-/* MCHN END */        
     return results;
 }
 #endif
 
-/* MCHN START */
 Value appendrawchange(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 2 || params.size() > 3)
@@ -781,7 +691,7 @@ Value appendrawchange(const Array& params, bool fHelp)
     amounts->Clear();
     
     mc_Script *lpScript=mc_gState->m_TmpBuffers->m_RpcScript3;
-    lpScript->Clear();    
+    lpScript->Clear();
 
     int allowed=0;
     int required=0;
@@ -790,7 +700,7 @@ Value appendrawchange(const Array& params, bool fHelp)
     asset_amounts->Clear();
     BOOST_FOREACH(const CTxOut& txout, tx.vout)
     {
-        if(ParseMultichainTxOutToBuffer(0,txout,asset_amounts,lpScript,&allowed,&required,strError))
+        if(ParseHdacTxOutToBuffer(0,txout,asset_amounts,lpScript,&allowed,&required,strError))
         {
             nAmount+=txout.nValue;
         }
@@ -809,7 +719,7 @@ Value appendrawchange(const Array& params, bool fHelp)
     int i=0;
     BOOST_FOREACH(const CTxOut& txout, input_txouts)
     {
-        if(ParseMultichainTxOutToBuffer(tx.vin[i].prevout.hash,txout,asset_amounts,lpScript,&allowed,&required,strError))
+        if(ParseHdacTxOutToBuffer(tx.vin[i].prevout.hash,txout,asset_amounts,lpScript,&allowed,&required,strError))
         {
             nAmount+=txout.nValue;
         }
@@ -825,12 +735,10 @@ Value appendrawchange(const Array& params, bool fHelp)
     for(int i=0;i<asset_amounts->GetCount();i++)
     {
         if(mc_GetABRefType(asset_amounts->GetRow(i)) == MC_AST_ASSET_REF_TYPE_GENESIS)
-//        if((int)mc_GetLE(asset_amounts->GetRow(i)+4,4)<0)
         {
             throw JSONRPCError(RPC_UNCONFIRMED_ENTITY, "Unconfirmed issue transaction in input");        
         }
         if(mc_GetABRefType(asset_amounts->GetRow(i)) != MC_AST_ASSET_REF_TYPE_SPECIAL)
-//        if((int)mc_GetLE(asset_amounts->GetRow(i),4)>0)          
         {
             int64_t quantity=mc_GetABQuantity(asset_amounts->GetRow(i));
             if(quantity < 0)
@@ -844,14 +752,8 @@ Value appendrawchange(const Array& params, bool fHelp)
         }
     }    
     
-    if(mc_gState->m_Features->VerifySizeOfOpDropElements())
     {
-        int assets_per_opdrop=(MCP_STD_OP_DROP_SIZE-4)/(mc_gState->m_NetworkParams->m_AssetRefSize+MC_AST_ASSET_QUANTITY_SIZE);
-        
-        if(mc_gState->m_Features->VerifySizeOfOpDropElements())
-        {
-            assets_per_opdrop=(MAX_SCRIPT_ELEMENT_SIZE-4)/(mc_gState->m_NetworkParams->m_AssetRefSize+MC_AST_ASSET_QUANTITY_SIZE);
-        }
+        int assets_per_opdrop=(MAX_SCRIPT_ELEMENT_SIZE-4)/(mc_gState->m_NetworkParams->m_AssetRefSize+MC_AST_ASSET_QUANTITY_SIZE);
 
         if(amounts->GetCount() > assets_per_opdrop)
         {
@@ -884,11 +786,8 @@ Value appendrawchange(const Array& params, bool fHelp)
     
     
     CAmount change_amount;
-    CAmount min_output=-1;                                                              // Calculate minimal output for the change
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain())
-    {
-        min_output=MCP_MINIMUM_PER_OUTPUT;
-    }            
+    CAmount min_output=-1;  // Calculate minimal output for the change
+    min_output=MCP_MINIMUM_PER_OUTPUT;
     if(min_output<0)
     {
         min_output=3*(::minRelayTxFee.GetFee(GetSerializeSize(SER_DISK,0)+148u));
@@ -1013,16 +912,13 @@ void AddCacheInputScriptIfNeeded(CMutableTransaction& rawTx,Array inputs, bool f
             {
                 throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, cache must be boolean");                
             }
-            if(mc_gState->m_Features->CachedInputScript())
+            if(cache_this.get_bool())
             {
-                if(cache_this.get_bool())
+                if(scriptPubKeyString.is_null())
                 {
-                    if(scriptPubKeyString.is_null())
-                    {
-                        fMissingScript=true;
-                    }       
-                    cache_value=1;
-                }
+                    fMissingScript=true;
+                }       
+                cache_value=1;
             }
         }
         cache_array.push_back(cache_value);            
@@ -1152,8 +1048,6 @@ void AddCacheInputScriptIfNeeded(CMutableTransaction& rawTx,Array inputs, bool f
 }
 
 
-/* MCHN END */
-
 Value appendrawtransaction(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 2 || params.size() > 5) 
@@ -1266,12 +1160,9 @@ Value appendrawtransaction(const Array& params, bool fHelp)
 
     if( required & (MC_PTP_ADMIN | MC_PTP_MINE) )
     {
-        if(mc_gState->m_Features->CachedInputScript())
+        if(mc_gState->m_NetworkParams->GetInt64Param("supportminerprecheck"))                                
         {
-            if(mc_gState->m_NetworkParams->GetInt64Param("supportminerprecheck"))                                
-            {
-                fCachedInputScriptRequired=true;
-            }
+            fCachedInputScriptRequired=true;
         }
     }
     
@@ -1303,7 +1194,7 @@ Value appendrawtransaction(const Array& params, bool fHelp)
     {
         BOOST_FOREACH(const Value& data, params[3].get_array()) 
         {
-            CScript scriptOpReturn=ParseRawMetadata(data,MC_DATA_API_PARAM_TYPE_ALL,&entity,NULL);
+            CScript scriptOpReturn=ParseRawMetadata(data,0xFFFF,&entity,NULL);
             CTxOut out(0, scriptOpReturn);
             rawTx.vout.push_back(out);            
         }
@@ -1433,12 +1324,9 @@ Value createrawtransaction(const Array& params, bool fHelp)
 
     if( required & (MC_PTP_ADMIN | MC_PTP_MINE) )
     {
-        if(mc_gState->m_Features->CachedInputScript())
+        if(mc_gState->m_NetworkParams->GetInt64Param("supportminerprecheck"))                                
         {
-            if(mc_gState->m_NetworkParams->GetInt64Param("supportminerprecheck"))                                
-            {
-                fCachedInputScriptRequired=true;
-            }
+            fCachedInputScriptRequired=true;
         }
     }
     
@@ -1470,7 +1358,7 @@ Value createrawtransaction(const Array& params, bool fHelp)
     {
         BOOST_FOREACH(const Value& data, params[2].get_array()) 
         {
-            CScript scriptOpReturn=ParseRawMetadata(data,MC_DATA_API_PARAM_TYPE_ALL,&entity,NULL);
+            CScript scriptOpReturn=ParseRawMetadata(data,0xFFFF,&entity,NULL);
             CTxOut out(0, scriptOpReturn);
             rawTx.vout.push_back(out);            
         }
@@ -1539,8 +1427,6 @@ Value createrawtransaction(const Array& params, bool fHelp)
     return hex;
 }
   
-/* MCHN START */
-
 Value appendrawmetadata(const json_spirit::Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 2 )
@@ -1574,7 +1460,7 @@ Value appendrawmetadata(const json_spirit::Array& params, bool fHelp)
         }
     }
     
-    CScript scriptOpReturn=ParseRawMetadata(params[1],MC_DATA_API_PARAM_TYPE_ALL,&entity,NULL);
+    CScript scriptOpReturn=ParseRawMetadata(params[1],0xFFFF,&entity,NULL);
     
     CTxOut txout(0, scriptOpReturn);
     tx.vout.push_back(txout);
@@ -1589,10 +1475,9 @@ Value disablerawtransaction(const Array& params, bool fHelp)
 
     RPCTypeCheck(params, list_of(str_type));
 
-    if( (mc_gState->m_NetworkParams->IsProtocolMultichain() == 0) ||
-        ( (pwalletMain->lpAssetGroups == NULL) || (pwalletMain->lpAssetGroups == 0) ) )
+    if( (pwalletMain->lpAssetGroups == NULL) || (pwalletMain->lpAssetGroups == 0) )
     {
-        throw JSONRPCError(RPC_NOT_SUPPORTED, "disablerawtransaction supported only for protocol=multichain");
+        throw JSONRPCError(RPC_NOT_SUPPORTED, "disablerawtransaction supported only for protocol=hdac");	// HDAC
     }    
 
     CTransaction tx;
@@ -1734,8 +1619,6 @@ Value disablerawtransaction(const Array& params, bool fHelp)
     throw JSONRPCError(RPC_INPUTS_NOT_MINE, "Couldn't find unspent input in this tx belonging to this wallet.");
 }
 
-/* MCHN END */
-
 
 Value decoderawtransaction(const Array& params, bool fHelp)
 {
@@ -1786,7 +1669,7 @@ Value signrawtransaction(const Array& params, bool fHelp)
     bool fOffline=GetBoolArg("-offline",false);
     if(fOffline && (params.size() < 2) )
     {
-        throw JSONRPCError(RPC_NOT_SUPPORTED, "prevtxs is required in offline mode");            
+    	throw JSONRPCError(RPC_NOT_SUPPORTED, "prevtxs is required in offline mode");
     }
 
     vector<unsigned char> txData(ParseHexV(params[0], "argument 1"));
@@ -1985,7 +1868,6 @@ Value sendrawtransaction(const Array& params, bool fHelp)
             if(state.IsInvalid())
                 throw JSONRPCError(RPC_TRANSACTION_REJECTED, strprintf("%i: %s", state.GetRejectCode(), state.GetRejectReason()));
             else
-/* MCHN START */                
             {
                 if(state.GetRejectReason().size())
                 {
@@ -1999,16 +1881,15 @@ Value sendrawtransaction(const Array& params, bool fHelp)
                         {
                             if(!fHaveChain)
                             {
-                                throw JSONRPCError(RPC_TRANSACTION_ALREADY_IN_CHAIN, "missing inputs");                    
+                                throw JSONRPCError(RPC_TRANSACTION_ALREADY_IN_CHAIN, "missing inputs");
                             }
                         }
                         throw JSONRPCError(RPC_TRANSACTION_ALREADY_IN_CHAIN, "transaction already in block chain");                    
                     }
                 }
             }
-/* MCHN START */                
         }
-/* MCHN START */            
+
         if(pwalletMain)
         {
             for (unsigned int i = 0; i < tx.vin.size(); i++) 
@@ -2017,7 +1898,6 @@ Value sendrawtransaction(const Array& params, bool fHelp)
                 pwalletMain->UnlockCoin(outp);
             }
         }
-/* MCHN END */            
         
     } else if (fHaveChain) {
         throw JSONRPCError(RPC_TRANSACTION_ALREADY_IN_CHAIN, "transaction already in block chain");

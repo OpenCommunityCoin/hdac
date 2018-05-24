@@ -20,6 +20,7 @@ class thread_group;
 extern CWallet* pwalletMain;
 extern mc_WalletTxs* pwalletTxsMain;
 
+extern bool fImportAddrs;
 
 void StartShutdown();
 bool ShutdownRequested();

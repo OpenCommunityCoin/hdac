@@ -20,9 +20,7 @@
 #include "structs/uint256.h"
 #include "utils/utilstrencodings.h"
 
-/* MCHN START */
 #include "keys/pubkey.h"
-/* MCHN END */
 
 #include <deque>
 #include <stdint.h>
@@ -172,11 +170,9 @@ public:
     double dPingTime;
     double dPingWait;
     std::string addrLocal;
-/* MCHN START */    
     CKeyID kAddrRemote;
     CKeyID kAddrLocal;    
     bool fSuccessfullyConnected;
-/* MCHN END */    
 };
 
 
@@ -273,9 +269,7 @@ public:
     CBloomFilter* pfilter;
     int nRefCount;
     NodeId id;
-    
-/* MCHN START*/    
-    
+        
     uint64_t nVersionNonceReceived;
     uint64_t nVersionNonceSent;
     uint64_t nVerackNonceReceived;
@@ -292,9 +286,7 @@ public:
     CKeyID kAddrLocal;
 
     CAddress addrFromVersion;
-    
-/* MCHN END*/    
-    
+        
 protected:
 
     // Denial-of-service detection/prevention

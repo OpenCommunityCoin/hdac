@@ -3,6 +3,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #include "rpc/rpcprotocol.h"
 
@@ -15,7 +17,7 @@
 
 #include <stdint.h>
 
-#include "multichain/multichain.h"
+#include "hdac/hdac.h"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/asio.hpp>
@@ -47,7 +49,7 @@ string HTTPPost(const string& strMsg, const map<string,string>& mapRequestHeader
 {
     ostringstream s;
     s << "POST / HTTP/1.1\r\n"
-      << "User-Agent: bitcoin-json-rpc/" << FormatFullVersion() << "\r\n"
+      << "User-Agent: hdac-json-rpc/" << FormatFullVersion() << "\r\n"
       << "Host: 127.0.0.1\r\n"
       << "Content-Type: application/json\r\n"
       << "Content-Length: " << strMsg.size() << "\r\n"
@@ -82,7 +84,7 @@ string HTTPError(int nStatus, bool keepalive, bool headersOnly)
     if (nStatus == HTTP_UNAUTHORIZED)
         return strprintf("HTTP/1.0 401 Authorization Required\r\n"
             "Date: %s\r\n"
-            "Server: bitcoin-json-rpc/%s\r\n"
+            "Server: hdac-json-rpc/%s\r\n"
             "WWW-Authenticate: Basic realm=\"jsonrpc\"\r\n"
             "Content-Type: text/html\r\n"
             "Content-Length: 296\r\n"
@@ -109,7 +111,7 @@ string HTTPReplyHeader(int nStatus, bool keepalive, size_t contentLength, const 
             "Connection: %s\r\n"
             "Content-Length: %u\r\n"
             "Content-Type: %s\r\n"
-            "Server: bitcoin-json-rpc/%s\r\n"
+            "Server: hdac-json-rpc/%s\r\n"
             "\r\n",
         nStatus,
         httpStatusDescription(nStatus),
@@ -265,9 +267,7 @@ string JSONRPCRequest(const string& strMethod, const Array& params, const Value&
     request.push_back(Pair("method", strMethod));
     request.push_back(Pair("params", params));
     request.push_back(Pair("id", id));
-/* MCHN START */    
     request.push_back(Pair("chain_name", string(mc_gState->m_Params->NetworkName())));
-/* MCHN END */    
     return write_string(Value(request), false) + "\n";
 }
 

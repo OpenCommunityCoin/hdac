@@ -3,6 +3,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #if defined(HAVE_CONFIG_H)
 #include "config/bitcoin-config.h"
@@ -21,7 +23,7 @@
 #include "keys/pubkey.h"
 #include "wallet/wallet.h"
 extern CWallet* pwalletMain;
-#include "multichain/multichain.h"
+#include "hdac/hdac.h"
 
 #ifdef WIN32
 #include <string.h>
@@ -412,16 +414,13 @@ CNode* ConnectNode(CAddress addrConnect, const char *pszDest)
     if (pszDest ? ConnectSocketByName(addrConnect, hSocket, pszDest, Params().GetDefaultPort(), nConnectTimeout, &proxyConnectionFailed) :
                   ConnectSocket(addrConnect, hSocket, nConnectTimeout, &proxyConnectionFailed))
     {
-/* MCHN START */        
         SetReachable(addrConnect.GetNetwork());
-/* MCHN END */        
         addrman.Attempt(addrConnect);
 
         // Add node
         CNode* pnode = new CNode(hSocket, addrConnect, pszDest ? pszDest : "", false);
         pnode->AddRef();
 
-/* MCHN START */        
         if(pszDest)
         {
             if(mc_gState->GetSeedNode())
@@ -429,12 +428,11 @@ CNode* ConnectNode(CAddress addrConnect, const char *pszDest)
                 if(strcmp(pszDest,mc_gState->GetSeedNode()) == 0)
                 {
                     mc_gState->m_pSeedNode=pnode;
-                    if(fDebug)LogPrint("mchn","mchn: Connected to seed node %s\n",pszDest);
+                    if(fDebug)LogPrint("hdac","hdac: Connected to seed node %s\n",pszDest);
                 }
             }
         }
         
-/* MCHN END */        
         {
             LOCK(cs_vNodes);
             vNodes.push_back(pnode);
@@ -486,19 +484,11 @@ void CNode::PushVersion()
         if(fDebug)LogPrint("net", "send version message: version %d, blocks=%d, us=%s, peer=%d\n", PROTOCOL_VERSION, nBestHeight, addrMe.ToString(), id);
     }
     
-/* MCHN START */
     std::string subver=FormatSubVersion(CLIENT_NAME, CLIENT_VERSION, std::vector<string>());
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain())
-    {
-        subver=FormatSubVersion("MultiChain", mc_gState->GetProtocolVersion(), std::vector<string>());
-    }
+    subver=FormatSubVersion("Hdac", mc_gState->GetProtocolVersion(), std::vector<string>());	// HDAC
     PushMessage("version", PROTOCOL_VERSION, nLocalServices, nTime, addrYou, addrMe,
                 nLocalHostNonce, subver, nBestHeight, true);
-/* MCHN END */
 }
-
-
-
 
 
 std::map<CNetAddr, int64_t> CNode::setBanned;
@@ -589,12 +579,9 @@ void CNode::copyStats(CNodeStats &stats)
     // Leave string empty if addrLocal invalid (not filled in yet)
     stats.addrLocal = addrLocal.IsValid() ? addrLocal.ToString() : "";
     
-/* MCHN START */    
     stats.kAddrLocal=kAddrLocal;
     stats.kAddrRemote=kAddrRemote;
-    stats.fSuccessfullyConnected=fSuccessfullyConnected;
-/* MCHN END */    
-    
+    stats.fSuccessfullyConnected=fSuccessfullyConnected;    
 }
 #undef X
 
@@ -768,9 +755,8 @@ void ThreadSocketHandler()
                     pnode->grantOutbound.Release();
 
                     // close socket and cleanup
-/* MCHN START */                    
                     if(fDebug)LogPrint("net","disconnect flag set\n");
-/* MCHN END */                    
+
                     pnode->CloseSocketDisconnect();
 
                     // hold in disconnected pool until all refs are released
@@ -985,9 +971,8 @@ void ThreadSocketHandler()
                         {
                             if (!pnode->ReceiveMsgBytes(pchBuf, nBytes))
                             {
-/* MCHN START */                    
                                 if(fDebug)LogPrint("net","receive error\n");
-/* MCHN END */                    
+
                                 pnode->CloseSocketDisconnect();
                             }
                             pnode->nLastRecv = GetTime();
@@ -1015,10 +1000,9 @@ void ThreadSocketHandler()
                             {
                                 if (!pnode->fDisconnect)
                                     LogPrintf("socket recv error %s\n", NetworkErrorString(nErr));
-/* MCHN START */                    
                                 else
                                     LogPrintf("socket recv error %s, disconnect flag is set\n", NetworkErrorString(nErr));
-/* MCHN END */                    
+
                                 pnode->CloseSocketDisconnect();
                             }
                         }
@@ -1124,7 +1108,7 @@ void ThreadMapPort()
             }
         }
 
-        string strDesc = "MultiChain " + FormatFullVersion();
+        string strDesc = "Hdac " + FormatFullVersion();	// HDAC
 
         try {
             while (true) {
@@ -1240,33 +1224,18 @@ void ThreadDNSAddressSeed()
 }
 
 
-
-
-
-
-
-
-
-
-
-
 void DumpAddresses()
 {
     int64_t nStart = GetTimeMillis();
 
-/* MCHN START */
     if(mc_gState->m_NetworkParams->m_Status != MC_PRM_STATUS_EMPTY) 
     {
-/* MCHN END */            
+        CAddrDB adb;
+        adb.Write(addrman);
     
-    CAddrDB adb;
-    adb.Write(addrman);
-
-    if(fDebug)LogPrint("net", "Flushed %d addresses to peers.dat  %dms\n",
-           addrman.size(), GetTimeMillis() - nStart);
-/* MCHN START */
+        if(fDebug)LogPrint("net", "Flushed %d addresses to peers.dat  %dms\n",
+               addrman.size(), GetTimeMillis() - nStart);
     }
-/* MCHN END */            
 }
 
 void static ProcessOneShot()
@@ -1307,17 +1276,13 @@ void ThreadOpenConnections()
             MilliSleep(500);
         }
     }
-
-/* MCHN START */    
     
-    if(mc_gState->GetSeedNode())                                                // MCHN-TODO. Connection to seed node, find later how to disconnect
+    if(mc_gState->GetSeedNode()) // MCHN-TODO. Connection to seed node, find later how to disconnect
     {
         CAddress addr;
         LogPrintf("Seed node is set, trying to connect to %s...\n",mc_gState->GetSeedNode());
         OpenNetworkConnection(addr, NULL, mc_gState->GetSeedNode());
     }
-
-/* MCHN END */    
     
     // Initiate network connections
     int64_t nStart = GetTime();
@@ -1361,7 +1326,6 @@ void ThreadOpenConnections()
                     setConnected.insert(pnode->addr.GetGroup());
                     nOutbound++;
                 }
-/* MCHN START */                
                 if (pnode->fInbound) 
                 {                
                     if (((CNetAddr)pnode->addr) == (CNetAddr)pnode->addrFromVersion)
@@ -1374,7 +1338,6 @@ void ThreadOpenConnections()
                 {
                     setConnectedToAddresses.insert(pnode->addr.ToStringIPPort());                    
                 }
-/* MCHN END */                
             }
         }
 
@@ -1387,99 +1350,46 @@ void ThreadOpenConnections()
             CAddress addr = addrman.Select(10 + min(nOutbound,8)*10);
 
             // if we selected an invalid address, restart
-/* MCHN START */            
-            if(mc_gState->m_NetworkParams->IsProtocolMultichain())
+            if (!addr.IsValid() || (IsLocal(addr) && (addr.GetPort() == GetListenPort())))
             {
-                if (!addr.IsValid() || (IsLocal(addr) && (addr.GetPort() == GetListenPort())))
-                {
-                    break;                
-                }
-                MilliSleep(100);
+                break;                
             }
-            else
-            {
-/* MCHN END */            
-                if (!addr.IsValid() || setConnected.count(addr.GetGroup()) || IsLocal(addr))
-                    break;
-/* MCHN START */            
-            }
-/* MCHN END */            
+            MilliSleep(100);
 
             // If we didn't find an appropriate destination after trying 100 addresses fetched from addrman,
             // stop this loop, and let the outer loop run again (which sleeps, adds seed nodes, recalculates
             // already-connected network ranges, ...) before trying new addrman addresses.
             nTries++;
-            if(mc_gState->m_NetworkParams->IsProtocolMultichain())
-            {
-                if (nTries > 20)                
-                    break;
-            }
-            else
-            {
-                if (nTries > 100)                
-                    break;                
-            }
+            if (nTries > 20)                
+                break;
             
             if (IsLimited(addr))
                 continue;
 
-            // only consider very recently tried nodes after 30 failed attempts
-/* MCHN START */            
-            if(mc_gState->m_NetworkParams->IsProtocolMultichain() == 0)
+            if(setConnectedVerifiedAddresses.count(addr.ToStringIPPort()))
             {
-/* MCHN END */            
-            if (nANow - addr.nLastTry < 600 && nTries < 30)
                 continue;
-/* MCHN START */            
             }
-/* MCHN END */            
-
-            
-            // do not allow non-default ports, unless after 50 invalid addresses selected already
-/* MCHN START */            
-            if(mc_gState->m_NetworkParams->IsProtocolMultichain() == 0)
+            if(setConnectedToAddresses.count(addr.ToStringIPPort()))
             {
-/* MCHN END */            
-                if (addr.GetPort() != Params().GetDefaultPort() && nTries < 50)
-                {
-                    continue;
-                }
-/* MCHN START */            
+                continue;
             }
-
-
-            if(mc_gState->m_NetworkParams->IsProtocolMultichain())
+            if (nANow - addr.nLastTry < 600)
             {
-                
-                if(setConnectedVerifiedAddresses.count(addr.ToStringIPPort()))
+                if(setConnectedFromAddresses.count(addr.ToStringIPPort()))
                 {
                     continue;
-                }
-                if(setConnectedToAddresses.count(addr.ToStringIPPort()))
-                {
-                    continue;
-                }
-                if (nANow - addr.nLastTry < 600)
-                {
-                    if(setConnectedFromAddresses.count(addr.ToStringIPPort()))
-                    {
-                        continue;
-                    }
                 }
             }
             
-/* MCHN END */            
-
             addrConnect = addr;
             break;
         }
 
-/* MCHN START */        
         if (addrConnect.IsValid())
         {
             OpenNetworkConnection(addrConnect, &grant);
         }
-/* MCHN END */        
     }
 }
 
@@ -1577,7 +1487,6 @@ bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant *grantOu
         if(fDebug)LogPrint("net","net: Node found: %s\n",pszDest);
         return false;
     }
-/* MCHN START */    
     if(pszDest)
     {
         if(fDebug)LogPrint("net","net: Trying to connect to %s (by address)\n",pszDest);
@@ -1586,16 +1495,13 @@ bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant *grantOu
     {
         if(fDebug)LogPrint("net","net: Trying to connect to %s\n",addrConnect.ToStringIPPort().c_str());
     }
-/* MCHN END */    
     
     CNode* pnode = ConnectNode(addrConnect, pszDest);
     boost::this_thread::interruption_point();
 
     if (!pnode)
     {
-/* MCHN START */    
         if(fDebug)LogPrint("net","net: Connection not established\n");
-/* MCHN END */    
         return false;
     }
     if (grantOutbound)
@@ -1642,9 +1548,7 @@ void ThreadMessageHandler()
                 {
                     if (!g_signals.ProcessMessages(pnode))
                     {
-/* MCHN START */                    
                         if(fDebug)LogPrint("net","socket closed because of error in message processing\n");
-/* MCHN END */                    
                         pnode->CloseSocketDisconnect();
                     }
                     if (pnode->nSendSize < SendBufferSize())
@@ -1658,25 +1562,21 @@ void ThreadMessageHandler()
             }
             boost::this_thread::interruption_point();
 
-/* MCHN START */
-/* Avoid communication with the node before connection is properly established with verackack and the network paramset is valid*/            
+            /* Avoid communication with the node before connection is properly established with verackack and the network paramset is valid*/            
             if (pnode->fDisconnect)
                 continue;
             
-        if((mc_gState->m_NetworkParams->m_Status == MC_PRM_STATUS_VALID) && pnode->fParameterSetVerified)
-        {
-/* MCHN END */
-            // Send messages
+            if((mc_gState->m_NetworkParams->m_Status == MC_PRM_STATUS_VALID) && pnode->fParameterSetVerified)
             {
-                TRY_LOCK(pnode->cs_vSend, lockSend);
-                if (lockSend)
-                    g_signals.SendMessages(pnode, pnode == pnodeTrickle);
+                // Send messages
+                {
+                    TRY_LOCK(pnode->cs_vSend, lockSend);
+                    if (lockSend)
+                        g_signals.SendMessages(pnode, pnode == pnodeTrickle);
+                }
+                boost::this_thread::interruption_point();
             }
-            boost::this_thread::interruption_point();
-/* MCHN START */            
-        }
 
-/* MCHN END */
         }
 
         {
@@ -1689,10 +1589,6 @@ void ThreadMessageHandler()
             MilliSleep(100);
     }
 }
-
-
-
-
 
 
 bool BindListenPort(const CService &addrBind, string& strError, bool fWhitelisted)
@@ -1755,7 +1651,7 @@ bool BindListenPort(const CService &addrBind, string& strError, bool fWhiteliste
     {
         int nErr = WSAGetLastError();
         if (nErr == WSAEADDRINUSE)
-            strError = strprintf(_("Unable to bind to %s on this computer. MultiChain Core is probably already running."), addrBind.ToString());
+            strError = strprintf(_("Unable to bind to %s on this computer. Hdac Core is probably already running."), addrBind.ToString());	// HDAC
         else
             strError = strprintf(_("Unable to bind to %s on this computer (bind returned error %s)"), addrBind.ToString(), NetworkErrorString(nErr));
         LogPrintf("%s\n", strError);
@@ -1839,16 +1735,12 @@ void StartNode(boost::thread_group& threadGroup)
     // Load addresses for peers.dat
     int64_t nStart = GetTimeMillis();
     {
-/* MCHN START */
         if(mc_gState->m_NetworkParams->m_Status != MC_PRM_STATUS_EMPTY) 
         {
-/* MCHN END */            
             CAddrDB adb;
             if (!adb.Read(addrman))
                 LogPrintf("Invalid or missing peers.dat; recreating\n");
-/* MCHN START */
         }
-/* MCHN END */
     }
     LogPrintf("Loaded %i addresses from peers.dat  %dms\n",
            addrman.size(), GetTimeMillis() - nStart);
@@ -1908,9 +1800,7 @@ bool StopNode()
         fAddressesInitialized = false;
     }
 
-/* MCHN START */
     LogPrintf("Node stopped\n");
-/* MCHN END */
     return true;
 }
 
@@ -1950,11 +1840,6 @@ public:
     }
 }
 instance_of_cnetcleanup;
-
-
-
-
-
 
 
 void RelayTransaction(const CTransaction& tx)
@@ -2194,7 +2079,6 @@ CNode::CNode(SOCKET hSocketIn, CAddress addrIn, std::string addrNameIn, bool fIn
     nPingUsecTime = 0;
     fPingQueued = false;
 
-/* MCHN START */    
     fDefaultMessageStart=false;
     fVerackackReceived=false;
     fVerackackSent=false;
@@ -2203,7 +2087,6 @@ CNode::CNode(SOCKET hSocketIn, CAddress addrIn, std::string addrNameIn, bool fIn
     fCanConnectLocal=false;
     fCanConnectRemote=false;
     fLastIgnoreIncoming=false;
-/* MCHN END */    
     
     {
         LOCK(cs_nLastNodeId);
@@ -2240,7 +2123,6 @@ void CNode::AskFor(const CInv& inv)
 {
     if (mapAskFor.size() > MAPASKFOR_MAX_SZ)
         return;
-/* MCHN START */
     if(mc_gState->m_NodePausedState & MC_NPS_INCOMING)                          
     {
         if(inv.type != MSG_BLOCK)
@@ -2248,7 +2130,7 @@ void CNode::AskFor(const CInv& inv)
             return;
         }
     }
-/* MCHN END */
+
     // We're using mapAskFor as a priority queue,
     // the key is the earliest time the request can be sent
     int64_t nRequestTime;
@@ -2266,9 +2148,7 @@ void CNode::AskFor(const CInv& inv)
     nNow = std::max(nNow, nLastTime);
     nLastTime = nNow;
     // Each retry is 2 minutes after the last
-//    nRequestTime = std::max(nRequestTime + 2 * 60 * 1000000, nNow);
-    nRequestTime = std::max(nRequestTime + Params().TargetSpacing() * 500000, nNow);
-    
+    nRequestTime = std::max(nRequestTime + 2 * 60 * 1000000, nNow);
     if (it != mapAlreadyAskedFor.end())
         mapAlreadyAskedFor.update(it, nRequestTime);
     else
@@ -2282,7 +2162,7 @@ void CNode::BeginMessage(const char* pszCommand) EXCLUSIVE_LOCK_FUNCTION(cs_vSen
     assert(ssSend.size() == 0);
     ssSend << CMessageHeader(pszCommand, 0);
     if(fDebug)LogPrint("net", "sending: %s ", SanitizeString(pszCommand));
-    if(fDebug)LogPrint("mchnminor","mchn: SEND: %s\n",SanitizeString(pszCommand));
+    if(fDebug)LogPrint("hdacminor","hdac: SEND: %s\n",SanitizeString(pszCommand));
 }
 
 void CNode::AbortMessage() UNLOCK_FUNCTION(cs_vSend)
@@ -2335,17 +2215,15 @@ void CNode::EndMessage() UNLOCK_FUNCTION(cs_vSend)
     LEAVE_CRITICAL_SECTION(cs_vSend);
 }
 
-/* MCHN START */
-
 int mc_QuerySeed(boost::thread_group& threadGroup,const char *seedAddr)
 {
     int err;
-//    AddOneShot(seedAddr);
+    //AddOneShot(seedAddr);
     StartNode(threadGroup);
 
     unsigned int StartTime=mc_TimeNowAsUInt();
     
-    if(fDebug)LogPrint("mchn","mchn: Sending query to seed node %s\n",seedAddr);
+    if(fDebug)LogPrint("hdac","hdac: Sending query to seed node %s\n",seedAddr);
         
     err=MC_ERR_NOERROR;
     
@@ -2354,7 +2232,7 @@ int mc_QuerySeed(boost::thread_group& threadGroup,const char *seedAddr)
         __US_Sleep(1);
         if(mc_TimeNowAsUInt() - StartTime > 10)
         {
-            LogPrintf("mchn: Could not establish connection with seed node - timeout\n");
+            LogPrintf("hdac: Could not establish connection with seed node - timeout\n");
             mc_gState->m_NetworkState=MC_NTS_SEED_READY;
             err=MC_ERR_CONNECTION_ERROR;
         }
@@ -2365,7 +2243,7 @@ int mc_QuerySeed(boost::thread_group& threadGroup,const char *seedAddr)
         mc_gState->m_NetworkState=MC_NTS_NOT_READY;
     }
     
-    if(fDebug)LogPrint("mchn","mchn: Query completed, waiting for seed node to disconnect\n");
+    if(fDebug)LogPrint("hdac","hdac: Query completed, waiting for seed node to disconnect\n");
     
     StartTime=mc_TimeNowAsUInt();
     bool fCheckDisconnect=true;
@@ -2376,7 +2254,7 @@ int mc_QuerySeed(boost::thread_group& threadGroup,const char *seedAddr)
                 LOCK(cs_vNodes);
                 if(vNodes.size() == 0)
                 {
-                    if(fDebug)LogPrint("mchn","mchn: Successfully disconnected from seed node\n");                    
+                    if(fDebug)LogPrint("hdac","hdac: Successfully disconnected from seed node\n");                    
                     fCheckDisconnect=false;
                 }
             }
@@ -2385,7 +2263,7 @@ int mc_QuerySeed(boost::thread_group& threadGroup,const char *seedAddr)
                 __US_Sleep(50);
                 if(mc_TimeNowAsUInt() - StartTime > 10)
                 {
-                    if(fDebug)LogPrint("mchn","mchn: Could not disconnect from seed node - timeout\n");                    
+                    if(fDebug)LogPrint("hdac","hdac: Could not disconnect from seed node - timeout\n");                    
                     fCheckDisconnect=false;
                     err=MC_ERR_CONNECTION_ERROR;
                 }
@@ -2400,4 +2278,3 @@ int mc_QuerySeed(boost::thread_group& threadGroup,const char *seedAddr)
     return err;
 }
 
-/* MCHN END */

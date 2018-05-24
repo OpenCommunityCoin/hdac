@@ -1,7 +1,13 @@
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
-#include "json/json_spirit_ubjson.h"
+#include "json/json_spirit_utils.h"
+#include "json/json_spirit_value.h"
+#include "hdac/hdac.h"
+using namespace std;
+using namespace json_spirit;
 
 #define UBJ_UNDEFINED          0
 #define UBJ_NULLTYPE           1

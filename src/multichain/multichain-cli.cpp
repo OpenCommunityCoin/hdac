@@ -2,6 +2,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #include "chainparams/chainparamsbase.h"
 #include "version/clientversion.h"
@@ -27,19 +29,21 @@ using namespace boost::asio;
 using namespace json_spirit;
 
 static const int CONTINUE_EXECUTION=-1;
-extern unsigned int JSON_NO_DOUBLE_FORMATTING;  
 
 std::string HelpMessageCli()
 {
     string strUsage;
     strUsage += _("Options:") + "\n";
     strUsage += "  -?                       " + _("This help message") + "\n";
-    strUsage += "  -conf=<file>             " + strprintf(_("Specify configuration file (default: %s)"), "multichain.conf") + "\n";
+//    strUsage += "  -conf=<file>             " + strprintf(_("Specify configuration file (default: %s)"), "multichain.conf") + "\n";
+    strUsage += "  -conf=<file>             " + strprintf(_("Specify configuration file (default: %s)"), "hdac.conf") + "\n";	// HDAC
     strUsage += "  -datadir=<dir>           " + _("Specify data directory") + "\n";
-    strUsage += "  -cold                    " + _("Connect to multichaind-cold: use multichaind-cold default directory if -datadir is not set") + "\n";
+//    strUsage += "  -cold=<dir>              " + _("Connect to multichaind-cold: use multichaind-cold default directory if -datadir is not set") + "\n";
+    strUsage += "  -cold                    " + _("Connect to hdacd-cold: use hdacd-cold default directory if -datadir is not set") + "\n";	// HDAC
 /* MCHN START */    
     strUsage += "  -requestout=<requestout> " + _("Send request to stderr, stdout or null (not print it at all), default stderr") + "\n"; 
-    strUsage += "  -saveclilog=<n>          " + _("If <n>=0 multichain-cli history is not saved, default 1") + "\n";
+//    strUsage += "  -saveclilog=<n>          " + _("If <n>=0 multichain-cli history is not saved, default 1") + "\n";
+    strUsage += "  -saveclilog=<n>          " + _("If <n>=0 hdac-cli history is not saved, default 1") + "\n";	// HDAC
 /*    
     strUsage += "  -testnet               " + _("Use the test network") + "\n";
     strUsage += "  -regtest               " + _("Enter regression test mode, which uses a special chain in which blocks can be "
@@ -106,7 +110,8 @@ static int AppInitRPC(int argc, char* argv[])
     {
         mc_gState->m_SessionFlags |= MC_SSF_COLD;
     }
-                
+    
+    
     mc_CheckDataDirInConfFile();
    
     if(mc_gState->m_Params->NetworkName())
@@ -125,7 +130,8 @@ static int AppInitRPC(int argc, char* argv[])
         (mc_gState->m_Params->NetworkName() == NULL) ||
         mc_gState->m_Params->m_NumArguments<minargs)
       {
-        fprintf(stdout,"\nMultiChain %s RPC client\n\n",mc_BuildDescription(mc_gState->GetNumericVersion()).c_str());
+//        fprintf(stdout,"\nMultiChain %s RPC client\n\n",mc_gState->GetVersion());
+        fprintf(stdout,"\nHdac %s RPC client\n\n",mc_gState->GetVersion());	// HDAC
         
         std::string strUsage = "";
         if (mc_gState->m_Params->HasOption("-version"))
@@ -133,10 +139,16 @@ static int AppInitRPC(int argc, char* argv[])
         }
         else
         {
+/*
             strUsage += "\n" + _("Usage:") + "\n" +
                   "  multichain-cli <blockchain-name> [options] <command> [params]  " + _("Send command to MultiChain Core") + "\n" +
                   "  multichain-cli <blockchain-name> [options] help                " + _("List commands") + "\n" +
                   "  multichain-cli <blockchain-name> [options] help <command>      " + _("Get help for a command") + "\n";
+*/
+            strUsage += "\n" + _("Usage:") + "\n" +
+                  "  hdac-cli <blockchain-name> [options] <command> [params]  " + _("Send command to Hdac Core") + "\n" +
+                  "  hdac-cli <blockchain-name> [options] help                " + _("List commands") + "\n" +
+                  "  hdac-cli <blockchain-name> [options] help <command>      " + _("Get help for a command") + "\n";	// HDAC
 
             strUsage += "\n" + HelpMessageCli();                                // MCHN-TODO Edit help message
         }
@@ -177,7 +189,8 @@ static int AppInitRPC(int argc, char* argv[])
                 {
                     if(read_err != MC_ERR_FILE_READ_ERROR)
                     {
-                        fprintf(stderr,"ERROR: Couldn't read configuration file for blockchain %s. Please try upgrading MultiChain. Exiting...\n",mc_gState->m_Params->NetworkName());
+//                        fprintf(stderr,"ERROR: Couldn't read configuration file for blockchain %s. Please try upgrading MultiChain. Exiting...\n",mc_gState->m_Params->NetworkName());
+                        fprintf(stderr,"ERROR: Couldn't read configuration file for blockchain %s. Please try upgrading Hdac. Exiting...\n",mc_gState->m_Params->NetworkName());	// HDAC
                         return EXIT_FAILURE;
                     }
                 }
@@ -214,11 +227,19 @@ static int AppInitRPC(int argc, char* argv[])
 Object CallRPC(const string& strMethod, const Array& params)
 {
     if (mapArgs["-rpcuser"] == "" && mapArgs["-rpcpassword"] == "")
-        throw runtime_error(strprintf(
+/*        throw runtime_error(strprintf(
             _("No credentials found for chain \"%s\"\n\n"
               "You must set rpcpassword=<password> in the configuration file:\n%s/multichain.conf\n"
               "If the file does not exist, create it with owner-readable-only file permissions."),
                 mc_gState->m_Params->NetworkName(),mc_gState->m_Params->DataDir(1,0)));
+*/
+/* HDAC START */
+        throw runtime_error(strprintf(
+            _("No credentials found for chain \"%s\"\n\n"
+              "You must set rpcpassword=<password> in the configuration file:\n%s/hdac.conf\n"
+              "If the file does not exist, create it with owner-readable-only file permissions."),
+                mc_gState->m_Params->NetworkName(),mc_gState->m_Params->DataDir(1,0)));
+/* HDAC END */
 
     // Connect to localhost
     bool fUseSSL = GetBoolArg("-rpcssl", false);
@@ -239,9 +260,7 @@ Object CallRPC(const string& strMethod, const Array& params)
     map<string, string> mapRequestHeaders;
     mapRequestHeaders["Authorization"] = string("Basic ") + strUserPass64;
     // Send request
-    JSON_NO_DOUBLE_FORMATTING=1;    
     string strRequest = JSONRPCRequest(strMethod, params, 1);
-    JSON_NO_DOUBLE_FORMATTING=0;    
     string strPost = HTTPPost(strRequest, mapRequestHeaders);
     stream << strPost << std::flush;
 
@@ -407,14 +426,22 @@ int main(int argc, char* argv[])
  #ifndef WIN32   
     if(mc_gState->m_Params->m_NumArguments == 1)                                // Interactive mode
     {
-        fprintf(stdout,"\nMultiChain %s RPC client\n\n",mc_BuildDescription(mc_gState->GetNumericVersion()).c_str());
+//        fprintf(stdout,"\nMultiChain %s RPC client\n\n",mc_gState->GetVersion());
+        fprintf(stdout,"\nHdac %s RPC client\n\n",mc_gState->GetVersion());	// HDAC
         if (mapArgs["-rpcuser"] == "" && mapArgs["-rpcpassword"] == "")
         {
+/*
             string str=strprintf(
                 _("No credentials found for chain \"%s\"\n\n"
                   "You must set rpcpassword=<password> in the configuration file:\n%s/multichain.conf\n"
                   "If the file does not exist, create it with owner-readable-only file permissions."),
                     mc_gState->m_Params->NetworkName(),mc_gState->m_Params->DataDir(1,0));
+*/
+            string str=strprintf(
+                _("No credentials found for chain \"%s\"\n\n"
+                  "You must set rpcpassword=<password> in the configuration file:\n%s/hdac.conf\n"
+                  "If the file does not exist, create it with owner-readable-only file permissions."),
+                    mc_gState->m_Params->NetworkName(),mc_gState->m_Params->DataDir(1,0));	// HDAC
             printf("error: %s\n",str.c_str());
             return EXIT_FAILURE;
         }
@@ -451,7 +478,7 @@ int main(int argc, char* argv[])
                 commandEnd=command+strlen(command);
                 offset=0;
                 argc_p=0;
-                strcpy(dest+offset,"multichain-cli");
+                strcpy(dest+offset,"hdac-cli");
                 argv_p[argc_p]=dest+offset;
                 argc_p++;
                 offset+=strlen(dest+offset)+1;

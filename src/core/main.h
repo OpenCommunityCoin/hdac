@@ -58,23 +58,15 @@ static const unsigned int DEFAULT_BLOCK_MIN_SIZE = 0;
 /** The maximum size for transactions we're willing to relay/mine */
 extern unsigned int MAX_STANDARD_TX_SIZE;                                       // MCHN global
 /** The maximum allowed number of signature check operations in a block (network rule) */
-extern unsigned int MAX_BLOCK_SIGOPS;                                           // MCHN global
-/** The maximum number of sigops we're willing to relay/mine in a single tx */
-extern unsigned int MAX_TX_SIGOPS;                                              // MCHN global
+//static const unsigned int MAX_BLOCK_SIGOPS = MAX_BLOCK_SIZE/50;                          // HDAC global
 /** Maximum number of signature check operations in an IsStandard() P2SH script */
 static const unsigned int MAX_P2SH_SIGOPS = 15;
+/** The maximum number of sigops we're willing to relay/mine in a single tx */
+//static const unsigned int MAX_TX_SIGOPS = MAX_BLOCK_SIGOPS/5;                            //HDAC global
 /** Default for -maxorphantx, maximum number of orphan transactions kept in memory */
-/* MCHN START */
-//static const unsigned int DEFAULT_MAX_ORPHAN_TRANSACTIONS = 100;
-/* MCHN START */
-//static const unsigned int DEFAULT_MAX_ORPHAN_TRANSACTIONS = 1000;
 static const unsigned int DEFAULT_MAX_ORPHAN_TRANSACTIONS = 50000;
 static const unsigned int DEFAULT_MAX_SUCCESSORS_FROM_ONE_NODE = 10;
-/* MCHN END */
 extern int MAX_OP_RETURN_SHOWN;
-extern int MAX_FORMATTED_DATA_DEPTH;
-extern int MIN_BLOCKS_BETWEEN_UPGRADES;
-/* MCHN END */
 /** The maximum size of a blk?????.dat file (since 0.8) */
 extern unsigned int MAX_BLOCKFILE_SIZE;                                     // MCHN global
 /** The pre-allocation chunk size for blk?????.dat files (since 0.8) */
@@ -147,14 +139,10 @@ extern CBlockIndex *pindexBestHeader;
 static const uint64_t nMinDiskSpace = 52428800;
 
 
-/* MCHN START */
-std::string MultichainServerAddress();
+std::string HdacServerAddress();
 void ClearMemPools();
 std::string SetLastBlock(uint256 hash);
 std::string SetLastBlock(uint256 hash,bool *fNotFound);
-//void InvalidWTx(const uint256& wtxid, const std::string& reason);
-/* MCHN END */
-
 
 /** Register a wallet to receive updates from core */
 void RegisterValidationInterface(CValidationInterface* pwalletIn);
@@ -381,6 +369,17 @@ bool WriteBlockToDisk(CBlock& block, CDiskBlockPos& pos);
 bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos);
 bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex);
 
+FILE* OpenDiskFile(const CDiskBlockPos &pos, const char *prefix, bool fReadOnly); // HDAC
+
+
+/* HDAC START */
+bool WriteBlacklistMinerToDisk(std::string addrMiner);
+bool ReadBlacklistMinerFromDisk();
+/** Open a block file (blk?????.dat) */
+FILE* OpenBlacklistMinerFile(bool fReadOnly = false);
+FILE* OpenBlacklistDiskFile(const char *prefix, bool fReadOnly);
+boost::filesystem::path GetBlacklistFilename(const char *prefix);
+/* HDAC END*/
 
 /** Functions for validating blocks and updating the block tree */
 
@@ -396,7 +395,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 /** Context-independent validity checks */
 bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, bool fCheckPOW = true);
 bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
-bool CheckBlockForUpgardableConstraints(const CBlock& block, CValidationState& state, std::string parameter, bool in_sync);
 
 /** Context-dependent validity checks */
 bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& state, CBlockIndex *pindexPrev, CBlockIndex *pindexChecked = NULL);

@@ -1,8 +1,8 @@
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
 
-#ifndef MULTICHAIN_WALLETTXDB_H
-#define	MULTICHAIN_WALLETTXDB_H
+#ifndef __WALLETTXDB_H_
+#define	__WALLETTXDB_H_
 
 #include "utils/declare.h"
 #include "utils/dbwrapper.h"
@@ -49,10 +49,6 @@
 #define MC_SFL_NODATA           0x01000000
 #define MC_SFL_SUBKEY           0x02000000
 
-#define MC_TEE_OFFSET_IN_TXID                  24
-#define MC_TEE_SIZE_IN_EXTENSION                8
-
-#define MC_TFL_IS_EXTENSION             0x01000000
 
 /** Entity - wallet, address, stream, etc. **/
 
@@ -63,16 +59,6 @@ typedef struct mc_TxEntity
     void Zero();
     void Init(unsigned char *entity_id,uint32_t entity_type);
 } mc_TxEntity;
-
-typedef struct mc_TxEntityRowExtension
-{
-    uint32_t m_Output;
-    uint32_t m_Count;
-    uint32_t m_TmpLastCount;
-    uint32_t m_Reserved;
-    void Zero();
-} mc_TxEntityRowExtension;
-
 
 /** Entity row pos->txid **/
 
@@ -280,10 +266,9 @@ typedef struct mc_TxDB
               mc_TxEntity *entity,                                              // Subkey entity
               const unsigned char *subkey_hash,                                 // Subkey hash
               const unsigned char *tx_hash,                                     // Tx hash (before chopping)    
-              mc_TxEntityRowExtension *extension,                               // Tx extension for storing multiple items per tx
               int block,                                                        // Block we are processing now, -1 for mempool
               uint32_t flags,                                                   // Flags passed by the higher level                
-              int newtx                                                         // New tx flag    
+              int newtx                                                         // New tx flag
     );
     
     int DecrementSubKey(
@@ -400,5 +385,5 @@ typedef struct mc_TxDB
 } mc_TxDB;
 
 
-#endif	/* MULTICHAIN_WALLETTXDB_H */
+#endif	/* __WALLETTXDB_H_ */
 

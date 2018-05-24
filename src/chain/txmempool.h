@@ -3,6 +3,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #ifndef BITCOIN_TXMEMPOOL_H
 #define BITCOIN_TXMEMPOOL_H
@@ -14,7 +16,7 @@
 #include "primitives/transaction.h"
 #include "utils/sync.h"
 
-#include "multichain/multichain.h"
+#include "hdac/hdac.h"
 
 class CAutoFile;
 

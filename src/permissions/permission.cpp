@@ -1,7 +1,9 @@
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
-#include "multichain/multichain.h"
+#include "hdac/hdac.h"
 
 unsigned char null_entity[MC_PLS_SIZE_ENTITY];
 unsigned char upgrade_entity[MC_PLS_SIZE_ENTITY];
@@ -710,29 +712,6 @@ int mc_MemcmpCheckSize(const void *s1,const char *s2,size_t s1_size)
     return memcmp(s1,s2,s1_size);
 }
 
-uint32_t mc_Permissions::GetPossiblePermissionTypes(const void* entity_details)
-{
-    uint32_t full_type;
-    mc_EntityDetails *entity;
-    entity=(mc_EntityDetails *)entity_details;
-    
-    if(entity)
-    {
-        if(entity->GetEntityType())
-        {
-            return entity->Permissions();
-        }
-    }
-    
-    full_type = MC_PTP_GLOBAL_ALL;
-    if(mc_gState->m_Features->Streams() == 0)
-    {
-        full_type-=MC_PTP_CREATE;
-    }        
-    
-    return full_type;
-}
-
 uint32_t mc_Permissions::GetPossiblePermissionTypes(uint32_t entity_type)
 {
     uint32_t full_type;
@@ -748,18 +727,11 @@ uint32_t mc_Permissions::GetPossiblePermissionTypes(uint32_t entity_type)
             break;
         case MC_ENT_TYPE_NONE:
             full_type = MC_PTP_GLOBAL_ALL;
-            if(mc_gState->m_Features->Streams() == 0)
-            {
-                full_type-=MC_PTP_CREATE;
-            }        
             break;
         default:
-            if(mc_gState->m_Features->FixedIn10007())
+            if(entity_type <= MC_ENT_TYPE_STREAM_MAX)
             {
-                if(entity_type <= MC_ENT_TYPE_STREAM_MAX)
-                {
-                    full_type = MC_PTP_WRITE | MC_PTP_ACTIVATE | MC_PTP_ADMIN;
-                }
+                full_type = MC_PTP_WRITE | MC_PTP_ACTIVATE | MC_PTP_ADMIN;
             }
             break;
     }
@@ -769,20 +741,15 @@ uint32_t mc_Permissions::GetPossiblePermissionTypes(uint32_t entity_type)
 
 /** Return ORed MC_PTP_ constants by textual value */
 
-uint32_t mc_Permissions::GetPermissionType(const char *str,const void* entity_details)
+uint32_t mc_Permissions::GetPermissionType(const char *str,int entity_type)
 {
-    return GetPermissionType(str,GetPossiblePermissionTypes(entity_details));
-}
-
-uint32_t mc_Permissions::GetPermissionType(const char *str,uint32_t full_type)
-{
-    uint32_t result,perm_type;
+    uint32_t result,perm_type,full_type;
     char* ptr;
     char* start;
     char* ptrEnd;
     char c;
     
-//    full_type=GetPossiblePermissionTypes(entity_details);
+    full_type=GetPossiblePermissionTypes(entity_type);
     
     ptr=(char*)str;
     ptrEnd=ptr+strlen(ptr);
@@ -809,11 +776,9 @@ uint32_t mc_Permissions::GetPermissionType(const char *str,uint32_t full_type)
                 if(mc_MemcmpCheckSize(start,"mine",     ptr-start) == 0)perm_type = MC_PTP_MINE;
                 if(mc_MemcmpCheckSize(start,"admin",    ptr-start) == 0)perm_type = MC_PTP_ADMIN;
                 if(mc_MemcmpCheckSize(start,"activate", ptr-start) == 0)perm_type = MC_PTP_ACTIVATE;
-                if(mc_gState->m_Features->Streams())
-                {
-                    if(mc_MemcmpCheckSize(start,"create", ptr-start) == 0)perm_type = MC_PTP_CREATE;
-                    if(mc_MemcmpCheckSize(start,"write", ptr-start) == 0)perm_type = MC_PTP_WRITE;
-                }
+                if(mc_MemcmpCheckSize(start,"create", ptr-start) == 0)perm_type = MC_PTP_CREATE;
+                if(mc_MemcmpCheckSize(start,"write", ptr-start) == 0)perm_type = MC_PTP_WRITE;
+                if(mc_MemcmpCheckSize(start,"banned", ptr-start) == 0)perm_type = MC_PTP_BANNED;
                 
                 if(perm_type == 0)
                 {
@@ -826,6 +791,11 @@ uint32_t mc_Permissions::GetPermissionType(const char *str,uint32_t full_type)
         ptr++;
     }
     
+    if(perm_type == MC_PTP_BANNED)
+    {
+        full_type |= MC_PTP_BANNED;
+    }
+
     if(result & ~full_type)
     {
         result=0;
@@ -1000,7 +970,7 @@ uint32_t mc_Permissions::GetAllPermissions(const void* lpEntity,const void* lpAd
     if(type & MC_PTP_SEND)       result |= CanSend(lpEntity,lpAddress);
     if(type & MC_PTP_RECEIVE)    result |= CanReceive(lpEntity,lpAddress);
     if(type & MC_PTP_WRITE)      result |= CanWrite(lpEntity,lpAddress);
-    if(type & MC_PTP_CREATE)       result |= CanCreate(lpEntity,lpAddress);
+    if(type & MC_PTP_CREATE)     result |= CanCreate(lpEntity,lpAddress);
     if(type & MC_PTP_ISSUE)      result |= CanIssue(lpEntity,lpAddress);
     if(type & MC_PTP_ADMIN)      result |= CanAdmin(lpEntity,lpAddress);
     if(type & MC_PTP_MINE)       result |= CanMine(lpEntity,lpAddress);
@@ -1052,12 +1022,6 @@ int mc_Permissions::IsApprovedInternal(const void* lpUpgrade, int check_current_
 
 int mc_Permissions::CanConnect(const void* lpEntity,const void* lpAddress)
 {
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain() == 0)
-    {
-        return MC_PTP_CONNECT;
-    }
-    
-//    if(lpEntity == NULL)
     if(mc_IsNullEntity(lpEntity))
     {
         if(MCP_ANYONE_CAN_CONNECT)
@@ -1083,11 +1047,6 @@ int mc_Permissions::CanSend(const void* lpEntity,const void* lpAddress)
     int result;
     mc_MempoolPermissionRow row;
     
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain() == 0)
-    {
-        return MC_PTP_SEND;
-    }
-    
     if(mc_IsNullEntity(lpEntity))
     {
         if(MCP_ANYONE_CAN_SEND)
@@ -1102,18 +1061,12 @@ int mc_Permissions::CanSend(const void* lpEntity,const void* lpAddress)
     
     if(result == 0)
     {
-        if(mc_gState->m_Features->Streams())
-        {
-            result |=  GetPermission(lpEntity,lpAddress,MC_PTP_ISSUE);    
-        }
+        result |=  GetPermission(lpEntity,lpAddress,MC_PTP_ISSUE);    
     }
     
     if(result == 0)
     {
-        if(mc_gState->m_Features->Streams())
-        {
-            result |=  GetPermission(lpEntity,lpAddress,MC_PTP_CREATE);    
-        }
+        result |=  GetPermission(lpEntity,lpAddress,MC_PTP_CREATE);    
     }
     
     if(result == 0)
@@ -1154,11 +1107,6 @@ int mc_Permissions::CanReceive(const void* lpEntity,const void* lpAddress)
     int result;
     mc_MempoolPermissionRow row;
 
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain() == 0)
-    {
-        return MC_PTP_RECEIVE;
-    }
-    
     if(mc_IsNullEntity(lpEntity))
     {
         if(MCP_ANYONE_CAN_RECEIVE)
@@ -1202,6 +1150,39 @@ int mc_Permissions::CanReceive(const void* lpEntity,const void* lpAddress)
     return result;
 }
 
+int mc_Permissions::IsBanned(const void* lpEntity,const void* lpAddress)
+{
+    int result = 0;
+    mc_MempoolPermissionRow row;
+
+	Lock(0);
+
+    if(MCP_ANYONE_CAN_SEND && MCP_ANYONE_CAN_RECEIVE)
+    {
+        result = GetPermission(lpEntity,lpAddress,MC_PTP_BANNED);
+    }
+    
+    if(result)
+    {
+        result = MC_PTP_BANNED; 
+    }
+
+    if(result)
+    {
+        if(m_CheckForMempoolFlag)
+        {
+            memcpy(&row.m_Entity,lpEntity,MC_PLS_SIZE_ENTITY);
+            memcpy(&row.m_Address,lpAddress,MC_PLS_SIZE_ADDRESS);
+            row.m_Type=MC_PTP_BANNED;
+            m_MempoolPermissions->Add(&row);
+        }
+    }
+    
+    UnLock();
+    
+    return result;
+}
+
 /** Returns non-zero value if (entity,address) can write */
 
 int mc_Permissions::CanWrite(const void* lpEntity,const void* lpAddress)
@@ -1209,11 +1190,6 @@ int mc_Permissions::CanWrite(const void* lpEntity,const void* lpAddress)
     int result;
     mc_MempoolPermissionRow row;
 
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain() == 0)
-    {
-        return 0;
-    }
-    
     Lock(0);
     
     result = GetPermission(lpEntity,lpAddress,MC_PTP_WRITE);    
@@ -1245,10 +1221,9 @@ int mc_Permissions::CanCreate(const void* lpEntity,const void* lpAddress)
 {
     int result;
 
-//    if(lpEntity == NULL)
     if(mc_IsNullEntity(lpEntity))
     {
-        if(MCP_ANYONE_CAN_RECEIVE)
+        if(MCP_ANYONE_CAN_CREATE)
         {
             return MC_PTP_CREATE;
         }
@@ -1347,11 +1322,6 @@ int mc_Permissions::CanMine(const void* lpEntity,const void* lpAddress)
     int result;    
     int32_t last;
         
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain() == 0)
-    {
-        return MC_PTP_MINE;
-    }
-    
     if(mc_IsNullEntity(lpEntity))
     {
         if(MCP_ANYONE_CAN_MINE)
@@ -1398,13 +1368,7 @@ int mc_Permissions::CanMineBlock(const void* lpAddress,uint32_t block)
     mc_BlockLedgerRow block_row;
     int result;    
     int miner_count;
-//    int diversity;
     uint32_t last;
-    
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain() == 0)
-    {
-        return MC_PTP_MINE;
-    }
     
     if(MCP_ANYONE_CAN_MINE)
     {
@@ -1552,11 +1516,6 @@ int mc_Permissions::CanMineBlockOnFork(const void* lpAddress,uint32_t block,uint
     uint32_t last;
     int result;
     
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain() == 0)
-    {
-        return MC_PTP_MINE;
-    }
-    
     if(MCP_ANYONE_CAN_MINE)
     {
          return MC_PTP_MINE;
@@ -1640,19 +1599,9 @@ int mc_Permissions::IsBarredByDiversity(uint32_t block,uint32_t last,int miner_c
 
 int mc_Permissions::CanAdmin(const void* lpEntity,const void* lpAddress)
 {
-    if(mc_gState->m_Features->Streams())
+    if(m_Block == -1)
     {
-        if(m_Block == -1)
-        {
-            return MC_PTP_ADMIN;
-        }
-    }
-    else
-    {
-        if(m_AdminCount == 0)
-        {
-            return MC_PTP_ADMIN;
-        }        
+        return MC_PTP_ADMIN;
     }
     
     if(mc_IsNullEntity(lpEntity))
@@ -1903,10 +1852,7 @@ int mc_Permissions::GetAdminCount()
 {    
     if(MCP_ANYONE_CAN_ADMIN)
     {
-        if(mc_gState->m_Features->FixedIn1000920001())
-        {
-            return 1;
-        }
+        return 1;
     }
     
     return m_AdminCount;
@@ -2647,6 +2593,8 @@ int mc_Permissions::RequiredForConsensus(const void* lpEntity,const void* lpAddr
         case MC_PTP_CREATE:
         case MC_PTP_ACTIVATE:
         case MC_PTP_WRITE:
+        case MC_PTP_BANNED:
+        
             if(pldLast.m_ThisRow)
             {
                 if(pldLast.m_BlockFrom == from)
@@ -3053,19 +3001,14 @@ int mc_Permissions::SetPermissionInternal(const void* lpEntity,const void* lpAdd
     types[num_types]=MC_PTP_CONNECT;num_types++;
     types[num_types]=MC_PTP_SEND;num_types++;
     types[num_types]=MC_PTP_RECEIVE;num_types++;
-    if(mc_gState->m_Features->Streams())
-    {
-        types[num_types]=MC_PTP_WRITE;num_types++;        
-        types[num_types]=MC_PTP_CREATE;num_types++;        
-    }
+    types[num_types]=MC_PTP_WRITE;num_types++;        
+    types[num_types]=MC_PTP_CREATE;num_types++;        
     types[num_types]=MC_PTP_ISSUE;num_types++;
     types[num_types]=MC_PTP_MINE;num_types++;
     types[num_types]=MC_PTP_ACTIVATE;num_types++;        
     types[num_types]=MC_PTP_ADMIN;num_types++;        
-    if(mc_gState->m_Features->Upgrades())
-    {
-        types[num_types]=MC_PTP_UPGRADE;num_types++;                        
-    }
+    types[num_types]=MC_PTP_UPGRADE;num_types++;                        
+    types[num_types]=MC_PTP_BANNED;num_types++;                        
     
     err=MC_ERR_NOERROR;
 
@@ -3836,12 +3779,7 @@ int mc_Permissions::StoreBlockInfoInternal(const void* lpMiner,const void* lpHas
     mc_PermissionLedgerRow pldRow;
     mc_BlockMinerDBRow pdbBlockMinerRow;
     mc_AdminMinerGrantDBRow pdbAdminMinerGrantRow;
-    
-    if(mc_gState->m_Features->CachedInputScript() == 0)
-    {
-        return MC_ERR_NOERROR;
-    }
-    
+        
     if(mc_gState->m_NetworkParams->GetInt64Param("supportminerprecheck") == 0)                                
     {
         return MC_ERR_NOERROR;        

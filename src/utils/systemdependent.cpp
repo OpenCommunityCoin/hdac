@@ -1,7 +1,9 @@
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
-#include "multichain/multichain.h"
+#include "hdac/hdac.h"
 
 #ifndef WIN32
 

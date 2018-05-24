@@ -22,17 +22,19 @@ class CWallet;
 
 struct CBlockTemplate;
 
+
 /** Run the miner threads */
 void GenerateBitcoins(bool fGenerate, CWallet* pwallet, int nThreads);
+
+bool CreateBlockSignature(CBlock *block,uint32_t hash_type,CWallet *pwallet);
+
 /** Generate a new block, without valid proof-of-work */
 CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn);
+CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,CWallet *pwallet,CPubKey *ppubkey,int *canMine);
 CBlockTemplate* CreateNewBlockWithKey(CReserveKey& reservekey);
-CBlockTemplate* CreateNewBlockWithDefaultKey(CWallet *pwallet,int *canMine, const std::set<CTxDestination>* addresses = NULL,CBlockIndex** ppPrev = NULL);
+CBlockTemplate* CreateNewBlockWithDefaultKey(CWallet *pwallet,int *canMine, const std::set<CTxDestination>* addresses = NULL,CBlockIndex** ppPrev = NULL);	// multichain 1.0.2.1
 /** Modify the extranonce in a block */
-/* MCHN START */
 void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& nExtraNonce,CWallet *pwallet);
-//void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& nExtraNonce);
-/* MCHN END */
 /** Check mined block */
 bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey);
 bool UpdateTime(CBlockHeader* block, const CBlockIndex* pindexPrev);

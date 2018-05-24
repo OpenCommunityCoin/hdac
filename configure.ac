@@ -434,7 +434,11 @@ if test x$use_hardening != xno; then
     ;;
   esac
 
-  CXXFLAGS="$CXXFLAGS $HARDENED_CXXFLAGS"
+  if test x$TARGET_OS = xwindows; then
+    CXXFLAGS="$CXXFLAGS $HARDENED_CXXFLAGS"
+  else
+    CXXFLAGS="$CXXFLAGS $HARDENED_CXXFLAGS -shared -fPIC"
+  fi
   CPPFLAGS="$CPPFLAGS $HARDENED_CPPFLAGS"
   LDFLAGS="$LDFLAGS $HARDENED_LDFLAGS"
   OBJCXXFLAGS="$CXXFLAGS"
@@ -703,10 +707,21 @@ fi
 
 CFLAGS_TEMP="$CFLAGS"
 LIBS_TEMP="$LIBS"
-CFLAGS="$CFLAGS $SSL_CFLAGS $CRYPTO_CFLAGS"
-LIBS="$LIBS $SSL_LIBS $CRYPTO_LIBS"
-AC_CHECK_HEADER([openssl/ec.h],, AC_MSG_ERROR(OpenSSL ec header missing),)
-CFLAGS="$CFLAGS_TEMP"
+dnl HDAC START
+if test x$TARGET_OS = xwindows; then
+  CFLAGS="$CFLAGS $SSL_CFLAGS $CRYPTO_CFLAGS"
+  LIBS="$LIBS $SSL_LIBS $CRYPTO_LIBS"
+  AC_CHECK_HEADER([openssl/ec.h],, AC_MSG_ERROR(OpenSSL ec header missing),)
+  CFLAGS="$CFLAGS_TEMP"
+else
+  CFLAGS="$CFLAGS $SSL_CFLAGS $CRYPTO_CFLAGS -shared -fPIC"  
+  LIBS="$LIBS $SSL_LIBS $CRYPTO_LIBS"
+  AC_CHECK_HEADER([openssl/ec.h],, AC_MSG_ERROR(OpenSSL ec header missing),)
+  CFLAGS="$CFLAGS_TEMP -shared -fPIC"
+fi
+
+dnl HDAC END
+
 LIBS="$LIBS_TEMP"
 
 BITCOIN_QT_PATH_PROGS([PROTOC], [protoc],$protoc_bin_path)

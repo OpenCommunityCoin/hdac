@@ -3,17 +3,14 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 
 #include "rpc/rpcwallet.h"
 
 void mergeGenesisWithAssets(mc_Buffer *genesis_amounts, mc_Buffer *asset_amounts)
-{
-    if(mc_gState->m_Features->ShortTxIDInTx() == 0)
-    {
-        return; 
-    }
-    
+{    
     unsigned char buf[MC_AST_ASSET_FULLREF_BUF_SIZE];
     int64_t quantity;
     memset(buf,0,MC_AST_ASSET_FULLREF_BUF_SIZE);
@@ -123,7 +120,7 @@ Value issuefromcmd(const Array& params, bool fHelp)
     
     lpScript->SetAssetGenesis(quantity);
     
-    mc_Script *lpDetailsScript=mc_gState->m_TmpBuffers->m_RpcScript1;   
+    mc_Script *lpDetailsScript=mc_gState->m_TmpBuffers->m_RpcScript1;
     lpDetailsScript->Clear();
     mc_Script *lpDetails=mc_gState->m_TmpBuffers->m_RpcScript2;
     lpDetails->Clear();
@@ -132,7 +129,6 @@ Value issuefromcmd(const Array& params, bool fHelp)
     string asset_name="";
     bool is_open=false;
     bool name_is_found=false;
-    uint32_t permissions=0;
     
     if (params.size() > 2 && params[2].type() != null_type)// && !params[2].get_str().empty())
     {
@@ -160,24 +156,6 @@ Value issuefromcmd(const Array& params, bool fHelp)
                         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid value for 'open' field, should be boolean");                                                                
                     }
                 }
-                if(s.name_ == "restrict")
-                {
-                    if(mc_gState->m_Features->PerAssetPermissions() == 0)
-                    {
-                        throw JSONRPCError(RPC_NOT_SUPPORTED, "Per-asset permissions not supported for this protocol version");   
-                    }
-                    if(permissions == 0)
-                    {
-                        if(s.value_.type() == str_type)
-                        {
-                            permissions=mc_gState->m_Permissions->GetPermissionType(s.value_.get_str().c_str(),MC_PTP_SEND | MC_PTP_RECEIVE);
-                            if(permissions == 0)
-                            {
-                                throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid value for restrict field");                                                                                                
-                            }
-                        }
-                    }
-                }
             }
         }
         else
@@ -189,12 +167,9 @@ Value issuefromcmd(const Array& params, bool fHelp)
         }
     }
     
-    if(mc_gState->m_Features->Streams())
+    if(asset_name == "*")
     {
-        if(asset_name == "*")
-        {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid asset name: *");                                                                                            
-        }
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid asset name: *");                                                                                            
     }
     
     unsigned char buf_a[MC_AST_ASSET_REF_SIZE];    
@@ -221,15 +196,12 @@ Value issuefromcmd(const Array& params, bool fHelp)
 
     lpDetails->Clear();
     lpDetails->AddElement();
-    
-    if(mc_gState->m_Features->OpDropDetailsScripts())
+
+    if(asset_name.size())
     {
-        if(asset_name.size())
-        {
-            lpDetails->SetSpecialParamValue(MC_ENT_SPRM_NAME,(const unsigned char*)(asset_name.c_str()),asset_name.size());//+1);
-        }        
-        lpDetails->SetSpecialParamValue(MC_ENT_SPRM_ASSET_MULTIPLE,(unsigned char*)&multiple,4);
-    }
+        lpDetails->SetSpecialParamValue(MC_ENT_SPRM_NAME,(const unsigned char*)(asset_name.c_str()),asset_name.size());//+1);
+    }        
+    lpDetails->SetSpecialParamValue(MC_ENT_SPRM_ASSET_MULTIPLE,(unsigned char*)&multiple,4);
     
     if(is_open)
     {
@@ -237,12 +209,6 @@ Value issuefromcmd(const Array& params, bool fHelp)
         lpDetails->SetSpecialParamValue(MC_ENT_SPRM_FOLLOW_ONS,&b,1);
     }
     
-    if(permissions)
-    {
-        lpDetails->SetSpecialParamValue(MC_ENT_SPRM_PERMISSIONS,(unsigned char*)&permissions,1);                                
-    }
-
-/*    
     if (params.size() > 6)
     {
         if(params[6].type() == obj_type)
@@ -258,7 +224,6 @@ Value issuefromcmd(const Array& params, bool fHelp)
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid custom fields, expecting object");                                        
         }
     }
- */ 
     int err;
     size_t bytes;
     const unsigned char *script;
@@ -266,56 +231,22 @@ Value issuefromcmd(const Array& params, bool fHelp)
     const unsigned char *elem;
     CScript scriptOpReturn=CScript();
     
-    
-        
-    vector<CTxDestination> addresses;    
-    vector<CTxDestination> fromaddresses;        
-    int errorCode=RPC_INVALID_PARAMETER;
-    string strError;    
-    lpDetailsScript->Clear();
-    if (params.size() > 6)
-    {
-        ParseRawDetails(&(params[6]),lpDetails,lpDetailsScript,&errorCode,&strError);        
-        if(strError.size())
-        {
-            goto exitlbl;
-        }
-    }
-    
     script=lpDetails->GetData(0,&bytes);
     lpDetailsScript->Clear();
         
-    if(mc_gState->m_Features->OpDropDetailsScripts())
+    err=lpDetailsScript->SetNewEntityType(MC_ENT_TYPE_ASSET,0,script,bytes);
+    if(err)
     {
-        err=lpDetailsScript->SetNewEntityType(MC_ENT_TYPE_ASSET,0,script,bytes);
-        if(err)
-        {
-            strError= "Invalid custom fields or asset name, too long";
-            goto exitlbl;
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid custom fields or asset name, too long");                                                        
-        }
-
-        elem = lpDetailsScript->GetData(0,&elem_size);
-        scriptOpReturn << vector<unsigned char>(elem, elem + elem_size) << OP_DROP << OP_RETURN;                    
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid custom fields or asset name, too long");
     }
-    else
-    {
-        err=lpDetailsScript->SetAssetDetails(asset_name.c_str(),multiple,script,bytes);
-        if(err)
-        {
-            strError= "Invalid custom fields or asset name, too long";
-            goto exitlbl;
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid custom fields or asset name, too long");                                                    
-        }
-
-        elem = lpDetailsScript->GetData(0,&elem_size);
-        scriptOpReturn << OP_RETURN << vector<unsigned char>(elem, elem + elem_size);
-    }
-        
     
+    elem = lpDetailsScript->GetData(0,&elem_size);
+    scriptOpReturn << vector<unsigned char>(elem, elem + elem_size) << OP_DROP << OP_RETURN;
 
+    vector<CTxDestination> addresses;    
     addresses.push_back(address.Get());
     
+    vector<CTxDestination> fromaddresses;        
     
     if(params[0].get_str() != "*")
     {
@@ -323,17 +254,12 @@ Value issuefromcmd(const Array& params, bool fHelp)
 
         if(fromaddresses.size() != 1)
         {
-            strError= "Single from-address should be specified";
-            goto exitlbl;
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Single from-address should be specified");                        
         }
 
         if( (IsMine(*pwalletMain, fromaddresses[0]) & ISMINE_SPENDABLE) != ISMINE_SPENDABLE )
         {
-            strError= "Private key for from-address is not found in this wallet";
-            errorCode=RPC_WALLET_ADDRESS_NOT_FOUND;
-            goto exitlbl;
-//            throw JSONRPCError(RPC_WALLET_ADDRESS_NOT_FOUND, "Private key for from-address is not found in this wallet");                        
+            throw JSONRPCError(RPC_WALLET_ADDRESS_NOT_FOUND, "Private key for from-address is not found in this wallet");                        
         }
         
         set<CTxDestination> thisFromAddresses;
@@ -346,10 +272,7 @@ Value issuefromcmd(const Array& params, bool fHelp)
         CPubKey pkey;
         if(!pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_ISSUE,&thisFromAddresses))
         {
-            strError= "from-address doesn't have issue permission";
-            errorCode=RPC_INSUFFICIENT_PERMISSIONS;
-            goto exitlbl;
-//            throw JSONRPCError(RPC_INSUFFICIENT_PERMISSIONS, "from-address doesn't have issue permission");                
+            throw JSONRPCError(RPC_INSUFFICIENT_PERMISSIONS, "from-address doesn't have issue permission");                
         }   
     }
     else
@@ -357,28 +280,15 @@ Value issuefromcmd(const Array& params, bool fHelp)
         CPubKey pkey;
         if(!pwalletMain->GetKeyFromAddressBook(pkey,MC_PTP_ISSUE))
         {
-            strError= "This wallet doesn't have keys with issue permission";
-            errorCode=RPC_INSUFFICIENT_PERMISSIONS;
-            goto exitlbl;
-//            throw JSONRPCError(RPC_INSUFFICIENT_PERMISSIONS, "This wallet doesn't have keys with issue permission");                
+            throw JSONRPCError(RPC_INSUFFICIENT_PERMISSIONS, "This wallet doesn't have keys with issue permission");                
         }        
     }
     
     EnsureWalletIsUnlocked();
-    {
-        LOCK (pwalletMain->cs_wallet_send);
-
-        SendMoneyToSeveralAddresses(addresses, nAmount, wtx, lpScript, scriptOpReturn,fromaddresses);
-    }
-
-exitlbl:    
+    LOCK (pwalletMain->cs_wallet_send);
     
-    
-    if(strError.size())
-    {
-        throw JSONRPCError(errorCode, strError);            
-    }
-                
+    SendMoneyToSeveralAddresses(addresses, nAmount, wtx, lpScript, scriptOpReturn,fromaddresses);
+
     return wtx.GetHash().GetHex();    
 }
  
@@ -428,13 +338,6 @@ Value issuemorefromcmd(const Array& params, bool fHelp)
     {        
         ParseEntityIdentifier(params[2],&entity, MC_ENT_TYPE_ASSET);           
         memcpy(buf,entity.GetFullRef(),MC_AST_ASSET_FULLREF_SIZE);
-        if(mc_gState->m_Features->ShortTxIDInTx() == 0)
-        {
-            if(entity.IsUnconfirmedGenesis())
-            {
-                throw JSONRPCError(RPC_UNCONFIRMED_ENTITY, string("Unconfirmed asset: ")+params[2].get_str());            
-            }
-        }
         multiple=entity.GetAssetMultiple();        
     }
     else
@@ -478,22 +381,6 @@ Value issuemorefromcmd(const Array& params, bool fHelp)
     
     lpDetails->AddElement();
         
-    vector<CTxDestination> addresses;    
-    vector<CTxDestination> fromaddresses;        
-    CScript scriptOpReturn=CScript();
-    int errorCode=RPC_INVALID_PARAMETER;
-    string strError;    
-    if (params.size() > 5)
-    {
-        ParseRawDetails(&(params[5]),lpDetails,lpDetailsScript,&errorCode,&strError);        
-        if(strError.size())
-        {
-            goto exitlbl;
-        }
-    }
-    lpDetailsScript->Clear();
-
-/*    
     if (params.size() > 5)
     {
         if(params[5].type() == obj_type)
@@ -509,45 +396,34 @@ Value issuemorefromcmd(const Array& params, bool fHelp)
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid extra-params, expecting object");                                        
         }
     }
-*/    
+    
     int err;
     size_t bytes;
     const unsigned char *script;
     size_t elem_size;
     const unsigned char *elem;
+    CScript scriptOpReturn=CScript();
     
     script=lpDetails->GetData(0,&bytes);
     if(bytes > 0)
     {
-//        mc_DumpSize("script",script,bytes,bytes);
-        if(mc_gState->m_Features->OpDropDetailsScripts())
+        lpDetailsScript->SetEntity(entity.GetTxID()+MC_AST_SHORT_TXID_OFFSET);
+        err=lpDetailsScript->SetNewEntityType(MC_ENT_TYPE_ASSET,1,script,bytes);
+        if(err)
         {
-            lpDetailsScript->SetEntity(entity.GetTxID()+MC_AST_SHORT_TXID_OFFSET);
-            err=lpDetailsScript->SetNewEntityType(MC_ENT_TYPE_ASSET,1,script,bytes);
-            if(err)
-            {
-                strError= "Invalid custom fields, too long";
-                goto exitlbl;
-//                throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid custom fields, too long");                                                        
-            }
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid custom fields, too long");                                                        
+        }
 
-            elem = lpDetailsScript->GetData(0,&elem_size);
-            scriptOpReturn << vector<unsigned char>(elem, elem + elem_size) << OP_DROP;
-            elem = lpDetailsScript->GetData(1,&elem_size);
-            scriptOpReturn << vector<unsigned char>(elem, elem + elem_size) << OP_DROP << OP_RETURN;                
-        }
-        else
-        {
-            lpDetailsScript->SetGeneralDetails(script,bytes);
-            elem = lpDetailsScript->GetData(0,&elem_size);
-            scriptOpReturn << OP_RETURN << vector<unsigned char>(elem, elem + elem_size);
-        }
+        elem = lpDetailsScript->GetData(0,&elem_size);
+        scriptOpReturn << vector<unsigned char>(elem, elem + elem_size) << OP_DROP;
+        elem = lpDetailsScript->GetData(1,&elem_size);
+        scriptOpReturn << vector<unsigned char>(elem, elem + elem_size) << OP_DROP << OP_RETURN;                
     }
-        
     
-
+    vector<CTxDestination> addresses;    
     addresses.push_back(address.Get());
     
+    vector<CTxDestination> fromaddresses;        
     
     if(params[0].get_str() != "*")
     {
@@ -555,17 +431,12 @@ Value issuemorefromcmd(const Array& params, bool fHelp)
 
         if(fromaddresses.size() != 1)
         {
-            strError= "Single from-address should be specified";
-            goto exitlbl;
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Single from-address should be specified");                        
         }
         
         if( (IsMine(*pwalletMain, fromaddresses[0]) & ISMINE_SPENDABLE) != ISMINE_SPENDABLE )
         {
-            strError= "Private key for from-address is not found in this wallet";
-            errorCode=RPC_WALLET_ADDRESS_NOT_FOUND;
-            goto exitlbl;
-//            throw JSONRPCError(RPC_WALLET_ADDRESS_NOT_FOUND, "Private key for from-address is not found in this wallet");                        
+            throw JSONRPCError(RPC_WALLET_ADDRESS_NOT_FOUND, "Private key for from-address is not found in this wallet");                        
         }        
     }
     else
@@ -590,17 +461,12 @@ Value issuemorefromcmd(const Array& params, bool fHelp)
                 {
                     if(mc_gState->m_Permissions->CanIssue(entity.GetTxID(),(unsigned char*)(lpKeyID)) == 0)
                     {
-                        strError= "Issuing more units for this asset is not allowed from this address";
-                        errorCode=RPC_INSUFFICIENT_PERMISSIONS;
-                        goto exitlbl;
-//                        throw JSONRPCError(RPC_INSUFFICIENT_PERMISSIONS, "Issuing more units for this asset is not allowed from this address");                                                                        
+                        throw JSONRPCError(RPC_INSUFFICIENT_PERMISSIONS, "Issuing more units for this asset is not allowed from this address");                                                                        
                     }                                                 
                 }
                 else
                 {
-                    strError= "Issuing more units is allowed only from P2PKH addresses";
-                    goto exitlbl;
-//                    throw JSONRPCError(RPC_INVALID_PARAMETER, "Issuing more units is allowed only from P2PKH addresses");                                                
+                    throw JSONRPCError(RPC_INVALID_PARAMETER, "Issuing more units is allowed only from P2PKH addresses");                                                
                 }
             }
             else
@@ -621,44 +487,26 @@ Value issuemorefromcmd(const Array& params, bool fHelp)
                 }                    
                 if(!issuer_found)
                 {
-                    strError= "Issuing more units for this asset is not allowed from this wallet";
-                    errorCode=RPC_INSUFFICIENT_PERMISSIONS;
-                    goto exitlbl;
-//                    throw JSONRPCError(RPC_INSUFFICIENT_PERMISSIONS, "Issuing more units for this asset is not allowed from this wallet");                                                                                            
+                    throw JSONRPCError(RPC_INSUFFICIENT_PERMISSIONS, "Issuing more units for this asset is not allowed from this wallet");                                                                                            
                 }
             }
         }
         else
         {
-            strError= "Issuing more units not allowed for this asset: "+params[2].get_str();
-            errorCode=RPC_NOT_ALLOWED;
-            goto exitlbl;
-//            throw JSONRPCError(RPC_NOT_ALLOWED, "Issuing more units not allowed for this asset: "+params[2].get_str());                            
+            throw JSONRPCError(RPC_NOT_ALLOWED, "Issuing more units not allowed for this asset: "+params[2].get_str());                            
         }
     }   
     else
     {
-        strError= "Asset not found";
-        errorCode=RPC_ENTITY_NOT_FOUND;
-        goto exitlbl;
-//        throw JSONRPCError(RPC_ENTITY_NOT_FOUND, "Asset not found");                
+        throw JSONRPCError(RPC_ENTITY_NOT_FOUND, "Asset not found");                
     }
     
     
     EnsureWalletIsUnlocked();
-    {
-        LOCK (pwalletMain->cs_wallet_send);
+    LOCK (pwalletMain->cs_wallet_send);
+    
+    SendMoneyToSeveralAddresses(addresses, nAmount, wtx, lpScript, scriptOpReturn,fromaddresses);
 
-        SendMoneyToSeveralAddresses(addresses, nAmount, wtx, lpScript, scriptOpReturn,fromaddresses);
-    }
-    
-exitlbl:    
-    
-    if(strError.size())
-    {
-        throw JSONRPCError(errorCode, strError);            
-    }
-                
     return wtx.GetHash().GetHex();    
 }
  
@@ -721,7 +569,7 @@ Value getmultibalances(const Array& params, bool fHelp)
     set<uint160> setAddressUints;
     set<uint160> *lpSetAddressUint=NULL;
     CTxDestination dest;
-    
+
     if(params.size() > 0)
     {
         if( (params[0].type() != str_type) || (params[0].get_str() != "*") )
@@ -733,8 +581,8 @@ Value getmultibalances(const Array& params, bool fHelp)
             {
                 return balances;
             }
-        
-            BOOST_FOREACH(string str_addr, setAddresses) 
+
+            BOOST_FOREACH(string str_addr, setAddresses)
             {
                 CBitcoinAddress address(str_addr);
                 dest=address.Get();
@@ -756,7 +604,7 @@ Value getmultibalances(const Array& params, bool fHelp)
             if(setAddressUints.size())
             {
                 lpSetAddressUint=&setAddressUints;
-            }            
+            }
         }
     }
     
@@ -815,7 +663,7 @@ Value getmultibalances(const Array& params, bool fHelp)
         LOCK(cs_main);
         
         mc_Script *lpScript=mc_gState->m_TmpBuffers->m_RpcScript3;
-        lpScript->Clear();    
+        lpScript->Clear();
         
         asset_amounts->Clear();
 
@@ -829,8 +677,8 @@ Value getmultibalances(const Array& params, bool fHelp)
         vector<COutput> vecOutputs;
         pwalletMain->AvailableCoins(vecOutputs, false, NULL, fUnlockedOnly,true, 0, lpSetAddressUint);
         BOOST_FOREACH(const COutput& out, vecOutputs) 
-        {        
-            if(!out.IsTrustedNoDepth())
+        {
+            if(!out.IsTrustedNoDepth() || (nMinDepth > 0))
             {
                 if (out.nDepth < nMinDepth)
                 {
@@ -1069,8 +917,6 @@ Value getmultibalances(const Array& params, bool fHelp)
                 balances.push_back(Pair(out_addr, addr_balances));                
             }
         }
-        
-        
     }        
         
     return balances;    
@@ -1123,7 +969,7 @@ Value getaddressbalances(const Array& params, bool fHelp)
     genesis_amounts->Clear();
     
     mc_Script *lpScript=mc_gState->m_TmpBuffers->m_RpcScript3;
-    lpScript->Clear();    
+    lpScript->Clear();
 
     int last_size=0;
     Array assets;
@@ -1150,28 +996,15 @@ Value getaddressbalances(const Array& params, bool fHelp)
     
     pwalletMain->AvailableCoins(vecOutputs, false, NULL, fUnlockedOnly,true,addr);
     BOOST_FOREACH(const COutput& out, vecOutputs) {
-        
-/*        
-        if(out.nDepth == 0)
-        {
-            if(!out.tx->IsTrusted(out.nDepth))
-            {
-                continue;
-            }
-        }
-        else
-        {
- */ 
-        if(!out.IsTrustedNoDepth())
+
+        if(!out.IsTrustedNoDepth() || (nMinDepth > 0))
         {
             if (out.nDepth < nMinDepth)
             {
                 continue;           
             }
         }
-/*
-         }
-*/
+         
         CTxOut txout;
         uint256 hash=out.GetHashAndTxOut(txout);
         if(check_account)
@@ -1202,7 +1035,6 @@ Value getaddressbalances(const Array& params, bool fHelp)
             unsigned char buf[MC_AST_ASSET_FULLREF_BUF_SIZE];
             memset(buf,0,MC_AST_ASSET_FULLREF_BUF_SIZE);
             int n;
-            bool is_genesis;
             
             n=asset_amounts->GetCount();
             
@@ -1210,51 +1042,28 @@ Value getaddressbalances(const Array& params, bool fHelp)
             {
                 Object asset_entry;
                 ptr=(unsigned char *)asset_amounts->GetRow(a);
-                is_genesis=false;
+
                 if(mc_GetABRefType(ptr) == MC_AST_ASSET_REF_TYPE_GENESIS)
                 {
                     mc_EntityDetails entity;
                     quantity=mc_GetABQuantity(asset_amounts->GetRow(a));
                     if(mc_gState->m_Assets->FindEntityByTxID(&entity,(unsigned char*)&hash))
                     {
-                        if((entity.IsUnconfirmedGenesis() != 0) && (mc_gState->m_Features->ShortTxIDInTx() == 0) )
-                        {
-                            is_genesis=true;                                
-                        }
-                        else
-                        {
-                            ptr=(unsigned char *)entity.GetFullRef();
-                            memcpy(buf,ptr,MC_AST_ASSET_FULLREF_SIZE);
-                            int row=asset_amounts->Seek(buf);
-                            if(row >= 0)
-                            {
-                                int64_t last=mc_GetABQuantity(asset_amounts->GetRow(row));
-                                quantity+=last;
-                                mc_SetABQuantity(asset_amounts->GetRow(row),quantity);
-                            }
-                            else
-                            {
-                                mc_SetABQuantity(buf,quantity);
-                                asset_amounts->Add(buf);                        
-                            }
-                        }
-                    }                
-                    
-                    if(is_genesis)
-                    {
-                        int row=genesis_amounts->Seek(&hash);
+                        ptr=(unsigned char *)entity.GetFullRef();
+                        memcpy(buf,ptr,MC_AST_ASSET_FULLREF_SIZE);
+                        int row=asset_amounts->Seek(buf);
                         if(row >= 0)
                         {
-                            int64_t last=mc_GetLE(genesis_amounts->GetRow(row)+32,MC_AST_ASSET_QUANTITY_SIZE);
+                            int64_t last=mc_GetABQuantity(asset_amounts->GetRow(row));
                             quantity+=last;
-                            mc_PutLE(genesis_amounts->GetRow(row)+32,&quantity,MC_AST_ASSET_QUANTITY_SIZE);
+                            mc_SetABQuantity(asset_amounts->GetRow(row),quantity);
                         }
                         else
                         {
                             mc_SetABQuantity(buf,quantity);
-                            genesis_amounts->Add(&hash,buf+MC_AST_ASSET_QUANTITY_OFFSET);                        
-                        }                        
-                    }
+                            asset_amounts->Add(buf);                        
+                        }
+                    }                
                 }                
             }
             last_size=asset_amounts->GetCount();
@@ -1334,7 +1143,8 @@ Value getassetbalances(const Array& params, bool fHelp)
             {
                 if(mc_gState->m_WalletMode & MC_WMD_ADDRESS_TXS)
                 {
-                    throw JSONRPCError(RPC_NOT_SUPPORTED, "Accounts are not supported with scalable wallet - if you need getassetbalances, run multichaind -walletdbversion=1 -rescan, but the wallet will perform worse");        
+                    //throw JSONRPCError(RPC_NOT_SUPPORTED, "Accounts are not supported with scalable wallet - if you need getassetbalances, run hdacd -walletdbversion=1 -rescan, but the wallet will perform worse");	// HDAC
+                    throw JSONRPCError(RPC_NOT_SUPPORTED, "Accounts are not supported");	// HDAC
                 }            
             }
             BOOST_FOREACH(const PAIRTYPE(CBitcoinAddress, CAddressBookData)& item, pwalletMain->mapAddressBook)
@@ -1363,37 +1173,26 @@ Value getassetbalances(const Array& params, bool fHelp)
     genesis_amounts->Clear();
     
     mc_Script *lpScript=mc_gState->m_TmpBuffers->m_RpcScript3;
-    lpScript->Clear();    
+    lpScript->Clear();
 
     int last_size=0;
     Array assets;
     CAmount totalBTC=0;
     vector<COutput> vecOutputs;
     assert(pwalletMain != NULL);
-    pwalletMain->AvailableCoins(vecOutputs, false, NULL, fUnlockedOnly,true);
+
+    pwalletMain->AvailableCoins(vecOutputs, false, NULL, fUnlockedOnly,true, !(filter & ISMINE_WATCH_ONLY));
+    
     BOOST_FOREACH(const COutput& out, vecOutputs) {
-        
-/*        
-        if(out.nDepth == 0)
+
+        if(!out.IsTrustedNoDepth() || (nMinDepth > 0))
         {
-            if(!out.tx->IsTrusted(out.nDepth))
+            if (out.nDepth < nMinDepth)
             {
                 continue;
             }
         }
-        else
-        {
- */ 
-            if(!out.IsTrustedNoDepth())
-            {
-                if (out.nDepth < nMinDepth)
-                {
-                    continue;           
-                }
-            }
-/*
-        }
-*/
+        
         CTxOut txout;
         uint256 hash=out.GetHashAndTxOut(txout);
         
@@ -1425,7 +1224,6 @@ Value getassetbalances(const Array& params, bool fHelp)
             unsigned char buf[MC_AST_ASSET_FULLREF_BUF_SIZE];
             memset(buf,0,MC_AST_ASSET_FULLREF_BUF_SIZE);
             int n;
-            bool is_genesis;
             
             n=asset_amounts->GetCount();
             
@@ -1433,51 +1231,28 @@ Value getassetbalances(const Array& params, bool fHelp)
             {
                 Object asset_entry;
                 ptr=(unsigned char *)asset_amounts->GetRow(a);
-                is_genesis=false;
+
                 if(mc_GetABRefType(ptr) == MC_AST_ASSET_REF_TYPE_GENESIS)
                 {
                     mc_EntityDetails entity;
                     quantity=mc_GetABQuantity(asset_amounts->GetRow(a));
                     if(mc_gState->m_Assets->FindEntityByTxID(&entity,(unsigned char*)&hash))
                     {
-                        if((entity.IsUnconfirmedGenesis() != 0) && (mc_gState->m_Features->ShortTxIDInTx() == 0) )
-                        {
-                            is_genesis=true;
-                        }
-                        else
-                        {
-                            ptr=(unsigned char *)entity.GetFullRef();
-                            memcpy(buf,ptr,MC_AST_ASSET_FULLREF_SIZE);
-                            int row=asset_amounts->Seek(buf);
-                            if(row >= 0)
-                            {
-                                int64_t last=mc_GetABQuantity(asset_amounts->GetRow(row));
-                                quantity+=last;
-                                mc_SetABQuantity(asset_amounts->GetRow(row),quantity);
-                            }
-                            else
-                            {
-                                mc_SetABQuantity(buf,quantity);
-                                asset_amounts->Add(buf);                        
-                            }
-                        }
-                    }                
-                    
-                    if(is_genesis)
-                    {
-                        int row=genesis_amounts->Seek(&hash);
+                        ptr=(unsigned char *)entity.GetFullRef();
+                        memcpy(buf,ptr,MC_AST_ASSET_FULLREF_SIZE);
+                        int row=asset_amounts->Seek(buf);
                         if(row >= 0)
                         {
-                            int64_t last=mc_GetLE(genesis_amounts->GetRow(row)+32,MC_AST_ASSET_QUANTITY_SIZE);
+                            int64_t last=mc_GetABQuantity(asset_amounts->GetRow(row));
                             quantity+=last;
-                            mc_PutLE(genesis_amounts->GetRow(row)+32,&quantity,MC_AST_ASSET_QUANTITY_SIZE);
+                            mc_SetABQuantity(asset_amounts->GetRow(row),quantity);
                         }
                         else
                         {
                             mc_SetABQuantity(buf,quantity);
-                            genesis_amounts->Add(&hash,buf+MC_AST_ASSET_QUANTITY_OFFSET);                        
-                        }                        
-                    }
+                            asset_amounts->Add(buf);                        
+                        }
+                    }                
                 }                
             }
             last_size=asset_amounts->GetCount();
@@ -1697,10 +1472,6 @@ Object ListAssetTransactions(const CWalletTx& wtx, mc_EntityDetails *entity, boo
     set<uint256> streams_already_seen;
     Array aMetaData;
     Array aItems;
-    uint32_t format;
-    Array aFormatMetaData;
-    vector<Array> aFormatMetaDataPerOutput;
-//    string format_text_str;
     
     double units=1.;
     units= 1./(double)(entity->GetAssetMultiple());
@@ -1768,8 +1539,6 @@ Object ListAssetTransactions(const CWalletTx& wtx, mc_EntityDetails *entity, boo
         }
     }    
 
-    aFormatMetaDataPerOutput.resize(wtx.vout.size());
-
     for (int i = 0; i < (int)wtx.vout.size(); ++i)
     {
         const CTxOut& txout = wtx.vout[i];
@@ -1826,7 +1595,6 @@ Object ListAssetTransactions(const CWalletTx& wtx, mc_EntityDetails *entity, boo
             lpScript->Clear();
             lpScript->SetScript((unsigned char*)(&pc2[0]),(size_t)(script2.end()-pc2),MC_SCR_TYPE_SCRIPTPUBKEY);
             
-            lpScript->ExtractAndDeleteDataFormat(&format);
             size_t elem_size;
             const unsigned char *elem;
 
@@ -1835,22 +1603,15 @@ Object ListAssetTransactions(const CWalletTx& wtx, mc_EntityDetails *entity, boo
                 if(lpScript->GetNumElements()==1)
                 {
                     elem = lpScript->GetData(lpScript->GetNumElements()-1,&elem_size);
-//                    aMetaData.push_back(OpReturnEntry(elem,elem_size,wtx.GetHash(),i));
-                    Value metadata=OpReturnFormatEntry(elem,elem_size,wtx.GetHash(),i,format,NULL);
-                    aFormatMetaData.push_back(metadata);
-                    aFormatMetaDataPerOutput[i].push_back(metadata);
+                    aMetaData.push_back(OpReturnEntry(elem,elem_size,wtx.GetHash(),i));
                 }                        
             }
             else
             {
-                if(mc_gState->m_Compatibility & MC_VCM_1_0)
+                elem = lpScript->GetData(lpScript->GetNumElements()-1,&elem_size);
+                if(elem_size)
                 {
-                    elem = lpScript->GetData(lpScript->GetNumElements()-1,&elem_size);
-                    if(elem_size)
-                    {
-                        aMetaData.push_back(OpReturnEntry(elem,elem_size,wtx.GetHash(),i));
-                        aFormatMetaData.push_back(OpReturnFormatEntry(elem,elem_size,wtx.GetHash(),i,format,NULL));
-                    }
+                    aMetaData.push_back(OpReturnEntry(elem,elem_size,wtx.GetHash(),i));
                 }
                 
                 lpScript->SetElement(0);
@@ -1891,18 +1652,7 @@ Object ListAssetTransactions(const CWalletTx& wtx, mc_EntityDetails *entity, boo
                 aTxOutItems.push_back(data_item_entry);
             }
             Object txout_entry=TxOutEntry(wtx.vout[i],i,TxIn,wtx.GetHash(),amounts,lpScript);
-            if( (aTxOutItems.size() > 0) || (mc_gState->m_Compatibility & MC_VCM_1_0) )
-            {
-                txout_entry.push_back(Pair("items", aTxOutItems));
-            }
-            if( (mc_gState->m_Compatibility & MC_VCM_1_0) == 0)
-            {
-                if(aFormatMetaDataPerOutput[i].size())
-                {
-                    txout_entry.push_back(Pair("data", aFormatMetaDataPerOutput[i]));                    
-                }
-            }
-            
+            txout_entry.push_back(Pair("items", aTxOutItems));
             vout.push_back(txout_entry);
         }
     }        
@@ -1931,7 +1681,7 @@ Object ListAssetTransactions(const CWalletTx& wtx, mc_EntityDetails *entity, boo
     
     entry.push_back(Pair("addresses", oBalance));
     entry.push_back(Pair("items", aItems));
-    entry.push_back(Pair("data", aFormatMetaData));
+    entry.push_back(Pair("data", aMetaData));
     
     WalletTxToJSON(wtx, entry, true);
 
@@ -1954,7 +1704,7 @@ Value getassettransaction(const Array& params, bool fHelp)
     
     if((mc_gState->m_WalletMode & MC_WMD_TXS) == 0)
     {
-        throw JSONRPCError(RPC_NOT_SUPPORTED, "API is not supported with this wallet version. To get this functionality, run \"multichaind -walletdbversion=2 -rescan\" ");        
+        throw JSONRPCError(RPC_NOT_SUPPORTED, "API is not supported with this wallet version. To get this functionality, run \"hdacd -walletdbversion=2 -rescan\" ");	// HDAC
     }   
            
     mc_EntityDetails asset_entity;
@@ -1985,7 +1735,7 @@ Value getassettransaction(const Array& params, bool fHelp)
     asset_amounts->Clear();
     
     mc_Script *lpScript=mc_gState->m_TmpBuffers->m_RpcScript3;
-    lpScript->Clear();    
+    lpScript->Clear();
     
     Object entry=ListAssetTransactions(wtx, &asset_entity, verbose, asset_amounts, lpScript);
     
@@ -2006,7 +1756,7 @@ Value listassettransactions(const Array& params, bool fHelp)
 
     if((mc_gState->m_WalletMode & MC_WMD_TXS) == 0)
     {
-        throw JSONRPCError(RPC_NOT_SUPPORTED, "API is not supported with this wallet version. To get this functionality, run \"multichaind -walletdbversion=2 -rescan\" ");        
+        throw JSONRPCError(RPC_NOT_SUPPORTED, "API is not supported with this wallet version. To get this functionality, run \"hdacd -walletdbversion=2 -rescan\" ");	// HDAC
     }   
 
     Array retArray;

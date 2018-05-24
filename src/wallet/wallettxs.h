@@ -2,14 +2,16 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
-#ifndef MULTICHAIN_WALLETTXS_H
-#define	MULTICHAIN_WALLETTXS_H
+#ifndef __WALLETTXS_H_
+#define	__WALLETTXS_H_
 
 #include "utils/util.h"
 #include "structs/base58.h"
 #include "wallet/wallet.h"
-#include "multichain/multichain.h"
+#include "hdac/hdac.h"
 #include "wallet/wallettxdb.h"
 
 #define MC_TDB_MAX_OP_RETURN_SIZE             256
@@ -190,5 +192,5 @@ typedef struct mc_WalletTxs
 
 
 
-#endif	/* MULTICHAIN_WALLETTXS_H */
+#endif	/* __WALLETTXS_H_ */
 

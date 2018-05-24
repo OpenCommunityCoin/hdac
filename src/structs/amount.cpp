@@ -28,11 +28,9 @@ CAmount CFeeRate::GetFee(size_t nSize) const
 
 std::string CFeeRate::ToString() const
 {
-/* MCHN START */    
     if(COIN == 0)
     {
-        return strprintf("%d.%08d BTC/kB", nSatoshisPerK, nSatoshisPerK);        
+        return strprintf("%d.%08d HDAC/kB", nSatoshisPerK, nSatoshisPerK);        
     }
-/* MCHN END */    
-    return strprintf("%d.%08d BTC/kB", nSatoshisPerK / COIN, nSatoshisPerK % COIN);
+    return strprintf("%d.%08d HDAC/kB", nSatoshisPerK / COIN, nSatoshisPerK % COIN);
 }

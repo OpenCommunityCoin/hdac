@@ -18,16 +18,12 @@ using namespace std;
 void static BatchWriteCoins(CLevelDBBatch &batch, const uint256 &hash, const CCoins &coins) {
     if (coins.IsPruned())
     {
-/* MCHN START */    
         if(fDebug)LogPrint("mccoin", "COIN: DB Erase  %s\n", hash.ToString().c_str());
-/* MCHN END */    
         batch.Erase(make_pair('c', hash));
     }
     else
     {
-/* MCHN START */    
         if(fDebug)LogPrint("mccoin", "COIN: DB Write  %s\n", hash.ToString().c_str());
-/* MCHN END */    
         batch.Write(make_pair('c', hash), coins);
     }
 }
@@ -223,7 +219,8 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
                 pindexNew->nStatus        = diskindex.nStatus;
                 pindexNew->nTx            = diskindex.nTx;
 
-                if (!CheckProofOfWork(pindexNew->GetBlockHash(), pindexNew->nBits))
+                //if (!CheckProofOfWork(pindexNew->GetBlockHash(), pindexNew->nBits))
+                if (!CheckProofOfWork(pindexNew->GetPoWBlockHash(), pindexNew->nBits))	// HDAC
                     return error("LoadBlockIndex() : CheckProofOfWork failed: %s", pindexNew->ToString());
 
                 pcursor->Next();

@@ -3,6 +3,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #ifndef BITCOIN_SCRIPT_SCRIPT_H
 #define BITCOIN_SCRIPT_SCRIPT_H
@@ -16,12 +18,9 @@
 #include <string>
 #include <vector>
 
-/* MCHN START */
-#include "chainparams/state.h"
-/* MCHN END */
+#include "chainparams/hdac/state.h"
 
 extern unsigned int MAX_SCRIPT_ELEMENT_SIZE;                                    // MCHN global
-extern unsigned int MAX_OP_RETURN_OP_DROP_COUNT;                                // MCHN global
 //static const unsigned int MAX_SCRIPT_ELEMENT_SIZE = 520; // bytes
 
 template <typename T>
@@ -167,9 +166,7 @@ enum opcodetype
 
 
     // template matching params
-/* MCHN START */    
     OP_DROPDATA = 0xf8,
-/* MCHN END */    
     
     OP_SMALLDATA = 0xf9,
     OP_SMALLINTEGER = 0xfa,
@@ -593,30 +590,24 @@ public:
     /** Called by IsStandardTx and P2SH/BIP62 VerifyScript (which makes it consensus-critical). */
     bool IsPushOnly() const;
 
-/* MCHN START */    
     bool HasSmallIntegerInTheBeginning() const;
-/* MCHN END */    
     
     /**
      * Returns whether the script is guaranteed to fail at execution,
      * regardless of the initial stack. This allows outputs to be pruned
      * instantly when entering the UTXO set.
      */
-    bool IsUnspendable() const;
-/*    
+    bool IsUnspendable() const
     {
         int op_drop_offset[2];
         int op_drop_size[2];
         int op_return_offset,op_return_size;
         return (mc_ParseOpDropOpReturnScript((unsigned char*)&begin()[0],(int)size(),op_drop_offset,op_drop_size,2,&op_return_offset,&op_return_size)) != NULL;        
-//        return (size() > 0 && *begin() == OP_RETURN);
     }
-*/
+
     std::string ToString() const;
 
-/* MCHN START */    
     CScript RemoveOpDrops() const;    
-/* MCHN END */    
 
     void clear()
     {

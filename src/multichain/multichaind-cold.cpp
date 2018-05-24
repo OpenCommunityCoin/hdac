@@ -2,6 +2,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #include "version/clientversion.h"
 #include "rpc/rpcserver.h"
@@ -72,6 +74,9 @@ bool AppInit(int argc, char* argv[])
     int bytes_written;
     char bufOutput[4096];
     bool is_daemon;
+    int is_protocol_multichain;
+    void *ptr;
+
     //
     // Parameters
     //
@@ -98,7 +103,8 @@ bool AppInit(int argc, char* argv[])
     
     if(!mc_DoesParentDataDirExist())
     {
-        fprintf(stderr,"\nError: Data directory %s needs to exist before calling multichaind-cold. Exiting...\n\n",mapArgs["-datadir"].c_str());
+//        fprintf(stderr,"\nError: Data directory %s needs to exist before calling multichaind-cold. Exiting...\n\n",mapArgs["-datadir"].c_str());
+        fprintf(stderr,"\nError: Data directory %s needs to exist before calling hdacd-cold. Exiting...\n\n",mapArgs["-datadir"].c_str());	// HDAC
         return false;        
     }
         
@@ -111,7 +117,8 @@ bool AppInit(int argc, char* argv[])
         mc_gState->m_Params->HasOption("-version") || 
         (mc_gState->m_Params->NetworkName() == NULL))
     {
-        fprintf(stdout,"\nMultiChain %s Offline Daemon (protocol %s)\n\n",mc_BuildDescription(mc_gState->GetNumericVersion()).c_str(),mc_SupportedProtocols().c_str());
+//        fprintf(stdout,"\nMultiChain %s Offline Daemon (protocol %d-%d)\n\n",mc_gState->GetVersion(),mc_gState->m_Features->MinProtocolVersion(),mc_gState->GetProtocolVersion());
+        fprintf(stdout,"\nHdac %s Offline Daemon (protocol %d-%d)\n\n",mc_gState->GetVersion(),mc_gState->m_Features->MinProtocolVersion(),mc_gState->GetProtocolVersion());	// HDAC
         std::string strUsage = "";
         if (mc_gState->m_Params->HasOption("-version"))
         {
@@ -119,9 +126,10 @@ bool AppInit(int argc, char* argv[])
         }
         else
         {
+//            strUsage += "\n" + _("Usage:") + "\n" +
+//                  "  multichaind-cold <blockchain-name> [options]                     " + _("Start MultiChain Offline Daemon") + "\n";
             strUsage += "\n" + _("Usage:") + "\n" +
-                  "  multichaind-cold <blockchain-name> [options]                     " + _("Start MultiChain Offline Daemon") + "\n";
-
+                  "  hdacd-cold <blockchain-name> [options]                     " + _("Start Hdac Offline Daemon") + "\n";	// HDAC
             strUsage += "\n" + HelpMessage_Cold();  
         }
 
@@ -133,7 +141,8 @@ bool AppInit(int argc, char* argv[])
 
     if(!GetBoolArg("-shortoutput", false))
     {
-        fprintf(stdout,"\nMultiChain %s Offline Daemon (latest protocol %d)\n\n",mc_BuildDescription(mc_gState->GetNumericVersion()).c_str(),mc_gState->GetProtocolVersion());
+//        fprintf(stdout,"\nMultiChain %s Offline Daemon (protocol %d)\n\n",mc_gState->GetVersion(),mc_gState->GetProtocolVersion());
+        fprintf(stdout,"\nHdac %s Offline Daemon (latest protocol %d)\n\n",mc_gState->GetVersion(),mc_gState->GetProtocolVersion());	// HDAC
     }
     
     pipes[1]=STDOUT_FILENO;
@@ -215,7 +224,8 @@ bool AppInit(int argc, char* argv[])
     err=mc_gState->m_NetworkParams->Read(mc_gState->m_Params->NetworkName());
     if(err)
     {
-        fprintf(stderr,"ERROR: Couldn't read configuration file for blockchain %s. Please try upgrading MultiChain. Exiting...\n",mc_gState->m_Params->NetworkName());
+//        fprintf(stderr,"ERROR: Couldn't read configuration file for blockchain %s. Please try upgrading MultiChain. Exiting...\n",mc_gState->m_Params->NetworkName());
+        fprintf(stderr,"ERROR: Couldn't read configuration file for blockchain %s. Please try upgrading Hdac. Exiting...\n",mc_gState->m_Params->NetworkName());	// HDAC
         delete mc_gState;                
         return false;
     }
@@ -253,39 +263,55 @@ bool AppInit(int argc, char* argv[])
     {
         if(err == MC_ERR_CORRUPTED)
         {
-            fprintf(stderr,"\nERROR: Couldn't initialize permission database for blockchain %s. Please restart multichaind with reindex=1.\n",mc_gState->m_Params->NetworkName());                        
+//            fprintf(stderr,"\nERROR: Couldn't initialize permission database for blockchain %s. Please restart multichaind with reindex=1.\n",mc_gState->m_Params->NetworkName());                        
+            fprintf(stderr,"\nERROR: Couldn't initialize permission database for blockchain %s. Please restart hdacd with reindex=1.\n",mc_gState->m_Params->NetworkName());	// HDAC
         }
         else
         {
-            fprintf(stderr,"\nERROR: Couldn't initialize permission database for blockchain %s. Probably multichaind for this blockchain is already running. Exiting...\n",mc_gState->m_Params->NetworkName());
+//            fprintf(stderr,"\nERROR: Couldn't initialize permission database for blockchain %s. Probably multichaind for this blockchain is already running. Exiting...\n",mc_gState->m_Params->NetworkName());
+            fprintf(stderr,"\nERROR: Couldn't initialize permission database for blockchain %s. Probably hdacd for this blockchain is already running. Exiting...\n",mc_gState->m_Params->NetworkName());	// HDAC
         }
         delete mc_gState;                
         return false;
     }
 
-    if(mc_gState->m_NetworkParams->GetParam("protocolversion",&size) != NULL)
+    is_protocol_multichain=1;
+    
+    ptr=mc_gState->m_NetworkParams->GetParam("chainprotocol",NULL);
+    if(ptr)
     {
-        int protocol_version=(int)mc_gState->m_NetworkParams->GetInt64Param("protocolversion");
-
-        if(mc_gState->IsSupported(protocol_version) == 0) 
+//        if(strcmp((char*)ptr,"multichain"))
+        if(strcmp((char*)ptr,"hdac"))
         {
-            if(mc_gState->IsDeprecated(protocol_version))
-            {
-                fprintf(stderr,"ERROR: The protocol version (%d) for blockchain %s has been deprecated and was last supported in MultiChain %s\n\n",
-                        protocol_version,mc_gState->m_Params->NetworkName(),
-                        mc_BuildDescription(-mc_gState->VersionInfo(protocol_version)).c_str());                        
-                delete mc_gState;                
-                return false;
-            }
-            else
-            {
-                fprintf(stderr,"ERROR: Parameter set for blockchain %s was generated by MultiChain running newer protocol version (%d)\n\n",
-                        mc_gState->m_Params->NetworkName(),protocol_version);                        
-                fprintf(stderr,"Please upgrade MultiChain\n\n");
-                delete mc_gState;                
-                return false;
-            }
+            is_protocol_multichain=0;
         }
+    }
+    
+    if(is_protocol_multichain)
+    {
+		if( (mc_gState->m_NetworkParams->GetParam("protocolversion",&size) != NULL) &&
+		    (mc_gState->GetProtocolVersion() < (int)mc_gState->m_NetworkParams->GetInt64Param("protocolversion")) )
+		{
+//		        fprintf(stderr,"ERROR: Parameter set for blockchain %s was generated by MultiChain running newer protocol version (%d)\n\n",
+//		                mc_gState->m_Params->NetworkName(),(int)mc_gState->m_NetworkParams->GetInt64Param("protocolversion"));                        
+		        fprintf(stderr,"ERROR: Parameter set for blockchain %s was generated by Hdac running newer protocol version (%d)\n\n",
+		                mc_gState->m_Params->NetworkName(),(int)mc_gState->m_NetworkParams->GetInt64Param("protocolversion"));        // HDAC      
+//		        fprintf(stderr,"Please upgrade MultiChain\n\n");
+		        fprintf(stderr,"Please upgrade Hdac\n\n");	// HDAC
+		        delete mc_gState;                
+		        return false;
+		}
+
+		if( (mc_gState->m_NetworkParams->GetParam("protocolversion",&size) != NULL) &&
+		    (mc_gState->m_Features->MinProtocolVersion() > (int)mc_gState->m_NetworkParams->GetInt64Param("protocolversion")) )
+		{
+//		        fprintf(stderr,"ERROR: The protocol version (%d) for blockchain %s has been deprecated and was last supported in MultiChain 1.0 beta 1\n\n",
+//		                (int)mc_gState->m_NetworkParams->GetInt64Param("protocolversion"),mc_gState->m_Params->NetworkName());                        
+		        fprintf(stderr,"ERROR: The protocol version (%d) for blockchain %s has been deprecated and was last supported in Hdac 1.0 beta 1\n\n",
+		                (int)mc_gState->m_NetworkParams->GetInt64Param("protocolversion"),mc_gState->m_Params->NetworkName());	// HDAC
+		        delete mc_gState;                
+		        return false;
+		}
     }
                         
     SelectMultiChainParams(mc_gState->m_Params->NetworkName());

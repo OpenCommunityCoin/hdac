@@ -2,6 +2,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #ifndef RPCWALLET_H
 #define	RPCWALLET_H
@@ -18,16 +20,23 @@
 #include "json/json_spirit_value.h"
 
 
-#include "multichain/multichain.h"
+#include "hdac/hdac.h"
 #include "wallet/wallettxs.h"
 #include "rpc/rpcutils.h"
+
+/* HDAC START
+ * sk_20180126 */
+extern CAmount maxTxFee;
+extern int64_t COIN;
+extern unsigned int MIN_RELAY_TX_FEE;
+/* HDAC END */
 
 void SendMoneyToSeveralAddresses(const std::vector<CTxDestination> addresses, CAmount nValue, CWalletTx& wtxNew,mc_Script *dropscript,CScript scriptOpReturn,const std::vector<CTxDestination>& fromaddresses);
 vector<CTxDestination> ParseAddresses(string param, bool create_full_list, bool allow_scripthash);
 void FindAddressesWithPublishPermission(std::vector<CTxDestination>& fromaddresses,mc_EntityDetails *stream_entity);
 set<string> ParseAddresses(Value param, isminefilter filter);
 bool CBitcoinAddressFromTxEntity(CBitcoinAddress &address,mc_TxEntity *lpEntity);
-Object StreamItemEntry(const CWalletTx& wtx,int first_output,const unsigned char *stream_id, bool verbose, const char** given_key,const char ** given_publisher,int *output);
+Object StreamItemEntry(const CWalletTx& wtx,const unsigned char *stream_id, bool verbose);
 Object TxOutEntry(const CTxOut& TxOutIn,int vout,const CTxIn& TxIn,uint256 hash,mc_Buffer *amounts,mc_Script *lpScript);
 void WalletTxToJSON(const CWalletTx& wtx, Object& entry,bool skipWalletConflicts = false, int vout = -1);
 void MinimalWalletTxToJSON(const CWalletTx& wtx, Object& entry);

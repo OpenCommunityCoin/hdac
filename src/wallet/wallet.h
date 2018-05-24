@@ -3,6 +3,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #ifndef BITCOIN_WALLET_H
 #define BITCOIN_WALLET_H
@@ -42,13 +44,16 @@ extern unsigned int nTxConfirmTarget;
 extern bool bSpendZeroConfChange;
 extern bool fSendFreeTransactions;
 extern bool fPayAtLeastCustomFee;
+extern bool fImportAddrs;
 
 //! -paytxfee default
 static const CAmount DEFAULT_TRANSACTION_FEE = 0;
 //! -paytxfee will warn if called with a higher fee than this amount (in satoshis) per KB
-static const CAmount nHighTransactionFeeWarning = 0.01 * COIN;
+//static const CAmount nHighTransactionFeeWarning = 0.01 * COIN;
+static const CAmount nHighTransactionFeeWarning = 1 * COIN;
 //! -maxtxfee default
-static const CAmount DEFAULT_TRANSACTION_MAXFEE = 0.1 * COIN;
+//static const CAmount DEFAULT_TRANSACTION_MAXFEE = 0.1 * COIN;
+static const CAmount DEFAULT_TRANSACTION_MAXFEE = 10 * COIN;
 //! -maxtxfee will warn if called with a higher fee than this amount (in satoshis)
 static const CAmount nHighTransactionMaxFeeWarning = 100 * nHighTransactionFeeWarning;
 //! Largest (in bytes) free transaction we're willing to create
@@ -179,7 +184,6 @@ private:
     int nMaxAssetsPerGroup;
     int nOptimalGroupCount;
     int nMode;
-    int nSingleAssetGroupCount;
     void Clear();
     void Destroy();
     
@@ -188,7 +192,6 @@ private:
     int *lpTmpGroupBuffer;
     
     CAssetGroup *FindAndShiftBestGroup(int assets);
-    CAssetGroup *AddSingleAssetGroup(unsigned char *assetRef);
     
 public:
     
@@ -361,11 +364,7 @@ public:
     CAssetGroupTree *lpAssetGroups;
     mc_WalletTxs *lpWalletTxs;
     void DestroyWalletTxs();
-    std::string SetDefaultKeyIfInvalid(std::string init_privkey);
-    
-//    std::map<COutPoint, CExchangeStatus> mapExchanges;
-    
-/* MCHN END */    
+    std::string SetDefaultKeyIfInvalid(std::string init_privkey);    
     
     int64_t nOrderPosNext;
     std::map<uint256, int> mapRequestCount;
@@ -383,11 +382,9 @@ public:
     //! check whether we are allowed to upgrade (or already support) to the named feature
     bool CanSupportFeature(enum WalletFeature wf) { AssertLockHeld(cs_wallet); return nWalletMaxVersion >= wf; }
 
-/* MCHN START */    
-//    void AvailableCoins(std::vector<COutput>& vCoins, bool fOnlyConfirmed=true, const CCoinControl *coinControl = NULL) const;
     void AvailableCoins(std::vector<COutput>& vCoins, bool fOnlyConfirmed=true, const CCoinControl *coinControl = NULL, bool fOnlyUnlocked=true, 
-                        bool fOnlyCoinsNoTxs=false, uint160 addr=0, const std::set<uint160>* addresses=NULL, uint32_t flags=MC_CSF_ALLOW_SPENDABLE_P2SH) const;
-/* MCHN END */    
+    bool fOnlyCoinsNoTxs=false, uint160 addr=0, const std::set<uint160>* addresses=NULL, uint32_t flags=MC_CSF_ALLOW_SPENDABLE_P2SH, bool except_watchonly=false) const;
+
     bool SelectCoinsMinConf(const CAmount& nTargetValue, int nConfMine, int nConfTheirs, std::vector<COutput> vCoins, std::set<std::pair<const CWalletTx*,unsigned int> >& setCoinsRet, CAmount& nValueRet) const;
 
     bool IsSpent(const uint256& hash, unsigned int n) const;
@@ -464,7 +461,7 @@ public:
     int ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate = false, bool fOnlyUnsynced = false);
     void ReacceptWalletTransactions();
     void ResendWalletTransactions(bool fForce = false);
-    CAmount GetBalance() const;
+    CAmount GetBalance(bool except_watchonly=false) const;
     CAmount GetUnconfirmedBalance() const;
     CAmount GetImmatureBalance() const;
     CAmount GetWatchOnlyBalance() const;
@@ -474,17 +471,16 @@ public:
                            CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl *coinControl = NULL);
     bool CreateTransaction(CScript scriptPubKey, const CAmount& nValue,
                            CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl *coinControl = NULL);
-/* MCHN START */    
-    int SelectMultiChainCombineCoinsMinConf(int nConfMine, int nConfTheirs, std::vector<COutput> vCoins, mc_Buffer *in_map, mc_Buffer *in_amounts,
+    int SelectHdacCombineCoinsMinConf(int nConfMine, int nConfTheirs, std::vector<COutput> vCoins, mc_Buffer *in_map, mc_Buffer *in_amounts,
                                 int in_selected_row,int in_asset_row,
                                 std::set<std::pair<const CWalletTx*,unsigned int> >& setCoinsRet,int max_inputs) const;    
-    bool SelectMultiChainCoinsMinConf(const CAmount& nTargetValue, int nConfMine, int nConfTheirs, std::vector<COutput> vCoins, mc_Buffer *in_map, mc_Buffer *in_amounts,
+    bool SelectHdacCoinsMinConf(const CAmount& nTargetValue, int nConfMine, int nConfTheirs, std::vector<COutput> vCoins, mc_Buffer *in_map, mc_Buffer *in_amounts,
                                 int in_selected_row,int in_asset_row,int in_preferred_row,
                                 std::set<std::pair<uint256,unsigned int> >& setCoinsRet, CAmount& nValueRet) const;
-    bool SelectMultiChainCoins(const CAmount& nTargetValue, std::vector<COutput> &vCoins, mc_Buffer *in_map, mc_Buffer *in_amounts, 
+    bool SelectHdacCoins(const CAmount& nTargetValue, std::vector<COutput> &vCoins, mc_Buffer *in_map, mc_Buffer *in_amounts, 
                                 int in_selected_row,int in_asset_row,int in_preferred_row,
                                 std::set<std::pair<uint256,unsigned int> >& setCoinsRet, CAmount& nValueRet, const CCoinControl* coinControl) const;    
-    bool CreateMultiChainTransaction(const std::vector<std::pair<CScript, CAmount> >& vecSend,
+    bool CreateHdacTransaction(const std::vector<std::pair<CScript, CAmount> >& vecSend,
                            CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl *coinControl = NULL,
                            const std::set<CTxDestination>* addresses = NULL,int min_conf = 1,int min_inputs = -1,int max_inputs = -1, const std::vector<COutPoint> *lpCoinsToUse = NULL, int *eErrorCode = NULL);
     bool CreateTransaction(CScript scriptPubKey, const CAmount& nValue, CScript scriptOpReturn,
@@ -499,7 +495,6 @@ public:
     bool UpdateUnspentList(const CWalletTx& wtx, bool update_inputs);
     bool InitializeUnspentList();
     void PurgeSpentCoins(int min_depth,int max_coins);   
-/* MCHN END */       
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, std::string& reject_reason);
 
     static CFeeRate minTxFee;
@@ -514,10 +509,7 @@ public:
     int64_t GetOldestKeyPoolTime();
     void GetAllReserveKeys(std::set<CKeyID>& setAddress) const;
 
-/* MCHN START */    
     bool GetKeyFromAddressBook(CPubKey& result,uint32_t type,const std::set<CTxDestination>* addresses = NULL,std::map<uint32_t, uint256>* mapSpecialEntity = NULL);
-/* MCHN END */    
-
     
     std::set< std::set<CTxDestination> > GetAddressGroupings();
     std::map<CTxDestination, CAmount> GetAddressBalances();
@@ -531,6 +523,12 @@ public:
     {
         return ::IsMine(*this, txout.scriptPubKey);
     }
+    
+    bool IsMineAddr(const CTxDestination& dest) const
+    {
+        return (ISMINE_NO != ::IsMine(*this, dest));
+    }
+
     CAmount GetCredit(const CTxOut& txout, const isminefilter& filter) const
     {
         if (!MoneyRange(txout.nValue))
@@ -554,24 +552,14 @@ public:
     /** should probably be renamed to IsRelevantToMe */
     bool IsFromMe(const CTransaction& tx) const
     {
-//        return (GetDebit(tx, ISMINE_ALL) > 0);
-/* MCHN START */        
-        if(mc_gState->m_NetworkParams->IsProtocolMultichain())
+        BOOST_FOREACH(const CTxIn& txin, tx.vin)
         {
-            BOOST_FOREACH(const CTxIn& txin, tx.vin)
+            if(IsFromMe(txin, ISMINE_ALL))
             {
-                if(IsFromMe(txin, ISMINE_ALL))
-                {
-                    return true;
-                }
+                return true;
             }
         }
-        else
-        {
-            return (GetDebit(tx, ISMINE_ALL) > 0);            
-        }
         return false;
-/* MCHN END */                
     }
     CAmount GetDebit(const CTransaction& tx, const isminefilter& filter) const
     {
@@ -802,9 +790,7 @@ public:
     char fFromMe;
     std::string strFromAccount;
     int64_t nOrderPos; //! position in ordered transaction list
-/* MCHN START */    
     mc_TxDefRow txDef;
-/* MCHN END */    
     
     // memory only
     mutable bool fDebitCached;
@@ -1109,25 +1095,15 @@ public:
 
     bool IsFromMe(const isminefilter& filter) const
     {
-/* MCHN START */        
-        if(mc_gState->m_NetworkParams->IsProtocolMultichain())
+        BOOST_FOREACH(const CTxIn& txin, vin)
         {
-            BOOST_FOREACH(const CTxIn& txin, vin)
+            if(pwallet->IsFromMe(txin, filter))
             {
-                if(pwallet->IsFromMe(txin, filter))
-                {
-                    return true;
-                }
+                return true;
             }
-        }
-        else
-        {
-            return (GetDebit(filter) > 0);                                                 
         }
         
         return false;
-//        return (GetDebit(filter) >= 0);                                         // MCHN > in original code
-/* MCHN END */        
     }
 
     bool IsTrusted(int nDepth) const;
@@ -1149,19 +1125,15 @@ public:
         BOOST_FOREACH(const CTxIn& txin, vin)
         {
             // Transactions not sent by us: not trusted
-/* MCHN START */            
             if(pwallet->setPurged.count(txin.prevout.hash) == 0)
             {
-/* MCHN END */            
-            const CWalletTx* parent = pwallet->GetWalletTx(txin.prevout.hash);
-            if (parent == NULL)
-                return false;
-            const CTxOut& parentOut = parent->vout[txin.prevout.n];
-            if (pwallet->IsMine(parentOut) != ISMINE_SPENDABLE)
-                return false;
-/* MCHN START */            
+                const CWalletTx* parent = pwallet->GetWalletTx(txin.prevout.hash);
+                if (parent == NULL)
+                    return false;
+                const CTxOut& parentOut = parent->vout[txin.prevout.n];
+                if (pwallet->IsMine(parentOut) != ISMINE_SPENDABLE)
+                    return false;
             }
-/* MCHN END */            
         }
         return true;
     }

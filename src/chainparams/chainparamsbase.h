@@ -21,9 +21,8 @@ public:
         TESTNET,
         REGTEST,
         UNITTEST,
-/* MCHN START */      
         MULTICHAIN,
-/* MCHN END */                
+        HDAC,
 
         MAX_NETWORK_TYPES
     };
@@ -66,10 +65,7 @@ bool SelectBaseParamsFromCommandLine();
  */
 bool AreBaseParamsConfigured();
 
-/* MCHN START */
+bool SelectHdacBaseParams(const char *NetworkName,int RPCPort);
 
-bool SelectMultiChainBaseParams(const char *NetworkName,int RPCPort);
-
-/* MCHN END */
 
 #endif // BITCOIN_CHAINPARAMSBASE_H

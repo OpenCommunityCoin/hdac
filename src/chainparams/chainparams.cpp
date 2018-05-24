@@ -3,6 +3,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #include "chainparams/chainparams.h"
 
@@ -12,7 +14,7 @@
 
 #include <assert.h>
 
-#include "multichain/multichain.h"
+#include "hdac/hdac.h"
 
 #include <boost/assign/list_of.hpp>
 
@@ -90,18 +92,17 @@ static const Checkpoints::CCheckpointData dataTestnet = {
         300
     };
 
-/* MCHN START */
-static Checkpoints::MapCheckpoints mapCheckpointsMultichain =
+static Checkpoints::MapCheckpoints mapCheckpointsHdac =
         boost::assign::map_list_of
         ( -1, uint256("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"))
         ;
-static const Checkpoints::CCheckpointData dataMultichain = {
-        &mapCheckpointsMultichain,
+static const Checkpoints::CCheckpointData dataHdac = {
+        &mapCheckpointsHdac,
         0,
         0,
         0
     };
-/* MCHN END */
+
 static Checkpoints::MapCheckpoints mapCheckpointsRegtest =
         boost::assign::map_list_of
         ( 0, uint256("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"))
@@ -164,8 +165,17 @@ public:
         genesis.nNonce   = 2083236893;
 
         hashGenesisBlock = genesis.GetHash();
+
+        /* HDAC START */
+        //std::cout << "hashGenesisBlock: " << hashGenesisBlock.ToString() << std::endl;
+        //std::cout << "hashMerkleRoot  : " << genesis.hashMerkleRoot.ToString() << std::endl;
+
+
         assert(hashGenesisBlock == uint256("0x000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"));
         assert(genesis.hashMerkleRoot == uint256("0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"));
+        //assert(hashGenesisBlock == uint256("0x77d3b890ffb0d746a0bd6c231284d3691ae34d5ecdd7468b6d69a26fb7da2672"));		// Lyra
+        //assert(genesis.hashMerkleRoot == uint256("0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"));	// Lyra
+        /* HDAC END */
 
         vSeeds.push_back(CDNSSeedData("bitcoin.sipa.be", "seed.bitcoin.sipa.be"));
         vSeeds.push_back(CDNSSeedData("bluematt.me", "dnsseed.bluematt.me"));
@@ -241,7 +251,14 @@ public:
         genesis.nTime = 1296688602;
         genesis.nNonce = 414098458;
         hashGenesisBlock = genesis.GetHash();
+
+        /* HDAC START */
+        //std::cout << "hashGenesisBlock: " << hashGenesisBlock.ToString() << std::endl;
+        //std::cout << "hashMerkleRoot  : " << genesis.hashMerkleRoot.ToString() << std::endl;
+
         assert(hashGenesisBlock == uint256("0x000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"));
+        //assert(hashGenesisBlock == uint256("0x95e2c3535ba670d424e78cbfda94e8effc218f1524d13dd0fb005d63f1ad84ee"));	// Lyra
+        /* HDAC END */
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -317,7 +334,16 @@ public:
         genesis.nNonce = 2;
         hashGenesisBlock = genesis.GetHash();
         nDefaultPort = 18444;
+
+        /* HDAC START */
+
+        //std::cout << "hashGenesisBlock: " << hashGenesisBlock.ToString() << std::endl;
+        //std::cout << "hashMerkleRoot  : " << genesis.hashMerkleRoot.ToString() << std::endl;
+
         assert(hashGenesisBlock == uint256("0x0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"));
+        //assert(hashGenesisBlock == uint256("0x0cbd182b8aac844eed8385c5d7edeb120b085af79d24dfd6b022a8c6ff1c3286")); // Lyra
+		/* HDAC END */
+
 
         vFixedSeeds.clear(); //! Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();  //! Regtest mode doesn't have any DNS seeds.
@@ -423,15 +449,13 @@ bool SelectParamsFromCommandLine()
     return true;
 }
 
-/* MCHN START */
-
-class CMultiChainParams : public CMainParams {
+class CHdacParams : public CMainParams {
 public:
-    CMultiChainParams() {    };
+    CHdacParams() {    };
     
     void SetFixedParams(const char *NetworkName)
     {
-        networkID = CBaseChainParams::MULTICHAIN;
+        networkID = CBaseChainParams::HDAC;
         strNetworkID=NetworkName;
         nMinerThreads = 0;
         fDefaultCheckMemPool = false;
@@ -467,7 +491,7 @@ public:
         const unsigned char *ucPtr;
         int size;
         
-        networkID = CBaseChainParams::MULTICHAIN;
+        networkID = CBaseChainParams::HDAC;
         
         strNetworkID = string(mc_gState->m_NetworkParams->Name());
                 
@@ -537,32 +561,21 @@ public:
         
 //        convertSeed6(vFixedSeeds, pnSeed6_test, ARRAYLEN(pnSeed6_test));
 
-        SetMultiChainParams();
-        SetMultiChainRuntimeParams();
+        SetHdacParams();
+        SetHdacRuntimeParams();
         
         fRequireStandard = (mc_gState->m_NetworkParams->GetInt64Param("onlyacceptstdtxs") != 0);
         fRequireStandard=GetBoolArg("-requirestandard", fRequireStandard);
         fTestnetToBeDeprecatedFieldRPC = (mc_gState->m_NetworkParams->GetInt64Param("chainistestnet") != 0);
     }
     
-    void SetMultiChainParams()
+    void SetHdacParams()
     {
         fAllowMinDifficultyBlocks=false;
-        if(mc_gState->m_Features->FixedIn1000920001())
-        {
-            fAllowMinDifficultyBlocks = (mc_gState->m_NetworkParams->GetInt64Param("allowmindifficultyblocks") != 0);            
-        }
+        fAllowMinDifficultyBlocks = (mc_gState->m_NetworkParams->GetInt64Param("allowmindifficultyblocks") != 0);            
     }
     
-    void SetMultiChainParam(const char*param_name,int64_t value)
-    {
-        if(strcmp(param_name,"targetblocktime") == 0)
-        {
-            nTargetSpacing=value;
-        }
-    }
-    
-    void SetMultiChainRuntimeParams()
+    void SetHdacRuntimeParams()
     {
         fMineBlocksOnDemand = GetBoolArg("-mineblocksondemand", false);
         fMiningRequiresPeers = (mc_gState->m_NetworkParams->GetInt64Param("miningrequirespeers") != 0);
@@ -610,15 +623,9 @@ public:
 
         root_stream_name_size=0;
         root_stream_name=NULL;
-        if(mc_gState->m_Features->Streams())
-        {
-            root_stream_name=(unsigned char *)mc_gState->m_NetworkParams->GetParam("rootstreamname",&root_stream_name_size);        
-            if(mc_gState->m_NetworkParams->IsProtocolMultichain() == 0)
-            {
-                root_stream_name_size=0;
-            }    
-        }
-        if(root_stream_name_size > ( (mc_gState->m_Features->FixedIn10008() != 0) ? 1 : 0 ) )
+        root_stream_name=(unsigned char *)mc_gState->m_NetworkParams->GetParam("rootstreamname",&root_stream_name_size);
+        
+        if(root_stream_name_size > 1 )
         {
             txNew.vout.resize(2);                        
         }
@@ -634,31 +641,15 @@ public:
         
         txNew.vout[0].nValue = mc_gState->m_NetworkParams->GetInt64Param("initialblockreward");// * COIN;
         
-        if(mc_gState->m_NetworkParams->IsProtocolMultichain())
-        {
-            ptrPubKeyHash=(unsigned char*)mc_gState->m_NetworkParams->GetParam("genesispubkeyhash",&size);        
-            txNew.vout[0].scriptPubKey = CScript() << OP_DUP << OP_HASH160 << vector<unsigned char>(ptrPubKeyHash, ptrPubKeyHash + size) << OP_EQUALVERIFY << OP_CHECKSIG;
-        }
-        else
-        {
-            ptrPubKeyHash=(unsigned char*)mc_gState->m_NetworkParams->GetParam("genesispubkey",&size);        
-            txNew.vout[0].scriptPubKey = CScript() << vector<unsigned char>(ptrPubKeyHash, ptrPubKeyHash + size) << OP_CHECKSIG;       
-        }
+        ptrPubKeyHash=(unsigned char*)mc_gState->m_NetworkParams->GetParam("genesispubkeyhash",&size);        
+        txNew.vout[0].scriptPubKey = CScript() << OP_DUP << OP_HASH160 << vector<unsigned char>(ptrPubKeyHash, ptrPubKeyHash + size) << OP_EQUALVERIFY << OP_CHECKSIG;
         
-        if(mc_gState->m_NetworkParams->IsProtocolMultichain())
         {
             mc_Script *lpScript;
             
             lpScript=new mc_Script;
             
-            if(mc_gState->m_Features->Streams())
-            {
-                lpScript->SetPermission(MC_PTP_GLOBAL_ALL,0,0xffffffff,(uint32_t)mc_gState->m_NetworkParams->GetInt64Param("genesistimestamp"));
-            }
-            else
-            {
-                lpScript->SetPermission(MC_PTP_ALL,0,0xffffffff,(uint32_t)mc_gState->m_NetworkParams->GetInt64Param("genesistimestamp"));                
-            }
+            lpScript->SetPermission(MC_PTP_GLOBAL_ALL,0,0xffffffff,(uint32_t)mc_gState->m_NetworkParams->GetInt64Param("genesistimestamp"));
             
             elem = lpScript->GetData(0,&elem_size);
             txNew.vout[0].scriptPubKey << vector<unsigned char>(elem, elem + elem_size) << OP_DROP;
@@ -666,7 +657,7 @@ public:
             delete lpScript;            
         }
         
-        if(root_stream_name_size > ( (mc_gState->m_Features->FixedIn10008() != 0) ? 1 : 0 ))
+        if(root_stream_name_size > 1)
         {        
             txNew.vout[1].nValue=0;
             lpDetails=new mc_Script;
@@ -677,15 +668,10 @@ public:
                 lpDetails->SetSpecialParamValue(MC_ENT_SPRM_ANYONE_CAN_WRITE,&b,1);        
             }
 
-
-            if(mc_gState->m_Features->FixedIn10007())
+            if( (root_stream_name_size > 1) && (root_stream_name[root_stream_name_size - 1] == 0x00) )
             {
-                if( (root_stream_name_size > 1) && (root_stream_name[root_stream_name_size - 1] == 0x00) )
-                {
-                    root_stream_name_size--;
-                }           
-            }
-
+                root_stream_name_size--;
+            }           
             
             lpDetails->SetSpecialParamValue(MC_ENT_SPRM_NAME,root_stream_name,root_stream_name_size);
     
@@ -695,44 +681,11 @@ public:
     
             lpDetailsScript=new mc_Script;
             
-            if(mc_gState->m_Features->OpDropDetailsScripts())
-            {
-                lpDetailsScript->SetNewEntityType(MC_ENT_TYPE_STREAM,0,script,bytes);
+            lpDetailsScript->SetNewEntityType(MC_ENT_TYPE_STREAM,0,script,bytes);
 
-                elem = lpDetailsScript->GetData(0,&elem_size);
-                txNew.vout[1].scriptPubKey=CScript();
-                txNew.vout[1].scriptPubKey << vector<unsigned char>(elem, elem + elem_size) << OP_DROP << OP_RETURN;                        
-            }
-            else
-            {                            
-                lpDetailsScript->SetNewEntityType(MC_ENT_TYPE_STREAM);
-
-                lpDetailsScript->SetGeneralDetails(script,bytes);
-                txNew.vout[1].scriptPubKey=CScript();
-
-                for(int e=0;e<lpDetailsScript->GetNumElements();e++)
-                {
-                    elem = lpDetailsScript->GetData(e,&elem_size);
-                    if(e == (lpDetailsScript->GetNumElements() - 1) )
-                    {
-                        if(elem_size > 0)
-                        {
-                            txNew.vout[1].scriptPubKey << OP_RETURN << vector<unsigned char>(elem, elem + elem_size);
-                        }
-                        else
-                        {
-                            txNew.vout[1].scriptPubKey << OP_RETURN;
-                        }
-                    }
-                    else
-                    {
-                        if(elem_size > 0)
-                        {
-                            txNew.vout[1].scriptPubKey << vector<unsigned char>(elem, elem + elem_size) << OP_DROP;
-                        }                
-                    }
-                }
-            }
+            elem = lpDetailsScript->GetData(0,&elem_size);
+            txNew.vout[1].scriptPubKey=CScript();
+            txNew.vout[1].scriptPubKey << vector<unsigned char>(elem, elem + elem_size) << OP_DROP << OP_RETURN;                        
             
             delete lpDetails;
             delete lpDetailsScript;
@@ -746,70 +699,52 @@ public:
         genesis.nTime    = (uint32_t)mc_gState->m_NetworkParams->GetInt64Param("genesistimestamp");
         genesis.nNonce   = (uint32_t)mc_gState->m_NetworkParams->GetInt64Param("genesisnonce");
 
-        hashGenesisBlock = genesis.GetHash();        
+        hashGenesisBlock = genesis.GetHash();
 
         char storedHash[65];
         mc_BinToHex(storedHash,mc_gState->m_NetworkParams->GetParam("genesishash",NULL),32);
-               
+
         assert(strcmp(storedHash,hashGenesisBlock.GetHex().c_str()) == 0);
-        
-/*        
-        mapCheckpointsMultichain =
-        boost::assign::map_list_of
-        ( 0, uint256(storedHash))
-        ;        
- */ 
-//        assert(hashGenesisBlock == uint256("0x0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"));
-        
     }
     
     const Checkpoints::CCheckpointData& Checkpoints() const 
     {
-        return dataMultichain;
+        return dataHdac;
     }
 };
-static CMultiChainParams multiChainParams;
+static CHdacParams hdacParams;
 
 
-bool SelectMultiChainParams(const char *NetworkName)
+bool SelectHdacParams(const char *NetworkName)
 {
-    SelectMultiChainBaseParams(NetworkName,(int)mc_gState->m_NetworkParams->GetInt64Param("defaultrpcport"));
+    SelectHdacBaseParams(NetworkName,(int)mc_gState->m_NetworkParams->GetInt64Param("defaultrpcport"));
 
-    multiChainParams.SetFixedParams(NetworkName);
+    hdacParams.SetFixedParams(NetworkName);
     
-    multiChainParams.Initialize();
+    hdacParams.Initialize();
     
-    pCurrentParams = &multiChainParams;
+    pCurrentParams = &hdacParams;
     
     return true;
 }
 
-void SetMultiChainParams()
+void SetHdacParams()
 {
-    multiChainParams.SetMultiChainParams();
+    hdacParams.SetHdacParams();
 }
 
-void SetMultiChainParam(const char*param_name,int64_t value)
+void SetHdacRuntimeParams()
 {
-    multiChainParams.SetMultiChainParam(param_name,value);
+    hdacParams.SetHdacRuntimeParams();
 }
 
-
-void SetMultiChainRuntimeParams()
-{
-    multiChainParams.SetMultiChainRuntimeParams();
-}
-
-bool InitializeMultiChainParams()
+bool InitializeHdacParams()
 {
     
-    multiChainParams.Initialize();
+    hdacParams.Initialize();
     
-    multiChainParams.SetGenesis();
+    hdacParams.SetGenesis();
     
     return true;
 }
-
-/* MCHN END */
-
 

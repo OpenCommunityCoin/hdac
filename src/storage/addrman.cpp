@@ -81,14 +81,12 @@ double CAddrInfo::GetChance(int64_t nNow) const
     for (int n = 0; n < nAttempts; n++)
         fChance /= 1.5;
     
-/* MCHN START */    
     // Without this, if all nodes are down, fChance goes to 0
     // and it takes several seconds of 100% CPU to choose from 3 addresses.
     if(fChance<0.00001)
     {
         fChance=0.00001;
     }
-/* MCHN END */    
     
     return fChance;
 }
@@ -283,10 +281,8 @@ void CAddrMan::MakeTried(CAddrInfo& info, int nId, int nOrigin)
 void CAddrMan::Good_(const CService& addr, int64_t nTime)
 {
     int nId;
-/* MCHN START */    
-//    CAddrInfo* pinfo = Find(addr, &nId);
     CAddrInfo* pinfo = FindWithPort(addr, &nId);
-/* MCHN END */    
+
     // if not found, bail out
     if (!pinfo)
         return;
@@ -520,7 +516,6 @@ void CAddrMan::GetAddr_(std::vector<CAddress>& vAddr)
 {
     unsigned int nNodes = ADDRMAN_GETADDR_MAX_PCT * vRandom.size() / 100;
 
-/* MCHN START */    
     bool addTerrible=false;
     if(nNodes < ADDRMAN_GETADDR_MAX_PCT * ADDRMAN_GETADDR_MAX / 100)
     {
@@ -531,7 +526,6 @@ void CAddrMan::GetAddr_(std::vector<CAddress>& vAddr)
             nNodes=vRandom.size();
         }
     }
-/* MCHN END */    
     
     if (nNodes > ADDRMAN_GETADDR_MAX)
         nNodes = ADDRMAN_GETADDR_MAX;
@@ -547,7 +541,7 @@ void CAddrMan::GetAddr_(std::vector<CAddress>& vAddr)
         assert(mapInfo.count(vRandom[n]) == 1);
 
         const CAddrInfo& ai = mapInfo[vRandom[n]];
-        if (addTerrible || !ai.IsTerrible())                                    // MCHN
+        if (addTerrible || !ai.IsTerrible())
             vAddr.push_back(ai);
     }
 }

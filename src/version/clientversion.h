@@ -39,9 +39,8 @@
 #define DO_STRINGIZE(X) #X
 
 //! Copyright string used in Windows .rc files
-/* MCHN START */
 #define COPYRIGHT_STR "2014-" STRINGIZE(COPYRIGHT_YEAR) " Coin Sciences Ltd"
-/* MCHN END */
+
 /**
  * bitcoind-res.rc includes this file, but it cannot cope with real c++ code.
  * WINDRES_PREPROC is defined to indicate that its pre-processor is running.

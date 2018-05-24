@@ -14,7 +14,6 @@
 
 typedef int64_t CAmount;
 
-/* MCHN START */
 //static const CAmount COIN = 100000000;
 //static const CAmount CENT = 1000000;
 
@@ -23,7 +22,6 @@ typedef int64_t CAmount;
 extern int64_t COIN;                                                
 extern int64_t CENT;                                                  
 extern int64_t MAX_MONEY;                                     
-/* MCHN END */
 
 inline bool MoneyRange(const CAmount& nValue) { return (nValue >= 0 && nValue <= MAX_MONEY); }
 

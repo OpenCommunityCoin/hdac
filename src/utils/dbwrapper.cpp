@@ -1,11 +1,10 @@
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
-
-//#include "utils/declare.h"
-//#include "utils/dbwrapper.h"
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #include "leveldb/include/leveldb/c.h"
-#include "multichain/multichain.h"
+#include "hdac/hdac.h"
 
 int cs_Database::Zero()
 {

@@ -2,6 +2,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #include "rpc/rpcserver.h"
 
@@ -73,34 +75,29 @@ Value getpeerinfo(const Array& params, bool fHelp)
     Array ret;
 
     BOOST_FOREACH(const CNodeStats& stats, vstats) {
-/* MCHN START */        
         if(stats.fSuccessfullyConnected)
         {
-/* MCHN END */        
-        Object obj;
-        CNodeStateStats statestats;
-        bool fStateStats = GetNodeStateStats(stats.nodeid, statestats);
-        obj.push_back(Pair("id", stats.nodeid));
-        obj.push_back(Pair("addr", stats.addrName));
-        if (!(stats.addrLocal.empty()))
-            obj.push_back(Pair("addrlocal", stats.addrLocal));
-        obj.push_back(Pair("services", strprintf("%016x", stats.nServices)));
-        obj.push_back(Pair("lastsend", stats.nLastSend));
-        obj.push_back(Pair("lastrecv", stats.nLastRecv));
-        obj.push_back(Pair("bytessent", stats.nSendBytes));
-        obj.push_back(Pair("bytesrecv", stats.nRecvBytes));
-        obj.push_back(Pair("conntime", stats.nTimeConnected));
-        obj.push_back(Pair("pingtime", stats.dPingTime));
-        if (stats.dPingWait > 0.0)
-            obj.push_back(Pair("pingwait", stats.dPingWait));
-        obj.push_back(Pair("version", stats.nVersion));
-        // Use the sanitized form of subver here, to avoid tricksy remote peers from
-        // corrupting or modifiying the JSON output by putting special characters in
-        // their ver message.
-        obj.push_back(Pair("subver", stats.cleanSubVer));
-/* MCHN START */        
-        if(mc_gState->m_NetworkParams->IsProtocolMultichain())
-        {
+            Object obj;
+            CNodeStateStats statestats;
+            bool fStateStats = GetNodeStateStats(stats.nodeid, statestats);
+            obj.push_back(Pair("id", stats.nodeid));
+            obj.push_back(Pair("addr", stats.addrName));
+            if (!(stats.addrLocal.empty()))
+                obj.push_back(Pair("addrlocal", stats.addrLocal));
+            obj.push_back(Pair("services", strprintf("%016x", stats.nServices)));
+            obj.push_back(Pair("lastsend", stats.nLastSend));
+            obj.push_back(Pair("lastrecv", stats.nLastRecv));
+            obj.push_back(Pair("bytessent", stats.nSendBytes));
+            obj.push_back(Pair("bytesrecv", stats.nRecvBytes));
+            obj.push_back(Pair("conntime", stats.nTimeConnected));
+            obj.push_back(Pair("pingtime", stats.dPingTime));
+            if (stats.dPingWait > 0.0)
+                obj.push_back(Pair("pingwait", stats.dPingWait));
+            obj.push_back(Pair("version", stats.nVersion));
+            // Use the sanitized form of subver here, to avoid tricksy remote peers from
+            // corrupting or modifiying the JSON output by putting special characters in
+            // their ver message.
+            obj.push_back(Pair("subver", stats.cleanSubVer));
             if(MCP_ANYONE_CAN_CONNECT)
             {
                 Value null_value;
@@ -112,31 +109,59 @@ Value getpeerinfo(const Array& params, bool fHelp)
                 obj.push_back(Pair("handshakelocal", CBitcoinAddress(stats.kAddrLocal).ToString()));                
                 obj.push_back(Pair("handshake", CBitcoinAddress(stats.kAddrRemote).ToString()));                
             }
-        }
-/* MCHN END */        
-        obj.push_back(Pair("inbound", stats.fInbound));
-        obj.push_back(Pair("startingheight", stats.nStartingHeight));
-        if (fStateStats) {
-            obj.push_back(Pair("banscore", statestats.nMisbehavior));
-            obj.push_back(Pair("synced_headers", statestats.nSyncHeight));
-            obj.push_back(Pair("synced_blocks", statestats.nCommonHeight));
-            Array heights;
-            BOOST_FOREACH(int height, statestats.vHeightInFlight) {
-                heights.push_back(height);
+            obj.push_back(Pair("inbound", stats.fInbound));
+            obj.push_back(Pair("startingheight", stats.nStartingHeight));
+            if (fStateStats) {
+                obj.push_back(Pair("banscore", statestats.nMisbehavior));
+                obj.push_back(Pair("synced_headers", statestats.nSyncHeight));
+                obj.push_back(Pair("synced_blocks", statestats.nCommonHeight));
+                Array heights;
+                BOOST_FOREACH(int height, statestats.vHeightInFlight) {
+                    heights.push_back(height);
+                }
+                obj.push_back(Pair("inflight", heights));
             }
-            obj.push_back(Pair("inflight", heights));
+            obj.push_back(Pair("whitelisted", stats.fWhitelisted));
+           
+            
+    
+            ret.push_back(obj);
         }
-        obj.push_back(Pair("whitelisted", stats.fWhitelisted));
-       
-        
-
-        ret.push_back(obj);
-/* MCHN START */        
-        }
-/* MCHN END */        
     }
 
     return ret;
+}
+
+int getpeernodeheight()
+{
+    vector<CNodeStats> vstats;
+    CopyNodeStats(vstats);
+
+    int height = 0;
+
+    BOOST_FOREACH(const CNodeStats& stats, vstats) {
+        if(stats.fSuccessfullyConnected)
+        {
+            CNodeStateStats sstats;
+            bool fSStats = GetNodeStateStats(stats.nodeid, sstats);
+            height = std::max(height, stats.nStartingHeight);
+            if(fSStats)
+            {
+                height = std::max(height, sstats.nSyncHeight);
+                height = std::max(height, sstats.nCommonHeight);
+            }
+        }
+    }
+
+    return height;
+}
+
+Value getchainblockheight(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error("Help message not found\n");
+
+    return getpeernodeheight();
 }
 
 Value addnode(const Array& params, bool fHelp)
@@ -307,18 +332,9 @@ Value getnetworkinfo(const Array& params, bool fHelp)
 
     Object obj;
     obj.push_back(Pair("version",       CLIENT_VERSION));
-/* MCHN START */    
-    if(mc_gState->m_NetworkParams->IsProtocolMultichain())
-    {
-        obj.push_back(Pair("subversion",
-            FormatSubVersion("MultiChain", mc_gState->GetProtocolVersion(), std::vector<string>())));
-    }
-    else
-    {
-        obj.push_back(Pair("subversion",
-            FormatSubVersion(CLIENT_NAME, CLIENT_VERSION, std::vector<string>())));
-    }
-/* MCHN END */        
+    obj.push_back(Pair("subversion",
+        FormatSubVersion("Hdac", mc_gState->GetProtocolVersion(), std::vector<string>())));	// HDAC
+
     obj.push_back(Pair("protocolversion",PROTOCOL_VERSION));
     obj.push_back(Pair("localservices",       strprintf("%016x", nLocalServices)));
     obj.push_back(Pair("timeoffset",    GetTimeOffset()));

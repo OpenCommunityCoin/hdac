@@ -25,9 +25,7 @@
 
 std::string SanitizeString(const std::string& str);
 std::vector<unsigned char> ParseHex(const char* psz);
-/* MCHN START */
 std::vector<unsigned char> ParseHex(const char* psz,bool &fIsHex);
-/* MCHN END */
 std::vector<unsigned char> ParseHex(const std::string& str);
 signed char HexDigit(char c);
 bool IsHex(const std::string& str);

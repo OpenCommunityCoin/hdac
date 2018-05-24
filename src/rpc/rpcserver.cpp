@@ -3,6 +3,8 @@
 // Original code was distributed under the MIT software license.
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
+// Copyright (c) 2017 Hdac Technology AG
+// Hdac code distributed under the GPLv3 license, see COPYING file.
 
 #include "rpc/rpcserver.h"
 
@@ -27,10 +29,18 @@
 #include <boost/thread.hpp>
 #include "json/json_spirit_writer_template.h"
 
+#include <boost/asio/ip/tcp.hpp> // HDAC
+#include <boost/enable_shared_from_this.hpp>  // HDAC
+#include <boost/asio/deadline_timer.hpp>  // HDAC
+
+
 using namespace boost;
 using namespace boost::asio;
 using namespace json_spirit;
 using namespace std;
+
+using boost::asio::deadline_timer;  // HDAC
+using boost::asio::ip::tcp;  // HDAC
 
 static std::string strRPCUserColonPass;
 
@@ -47,6 +57,77 @@ static boost::thread_group* rpc_worker_group = NULL;
 static boost::asio::io_service::work *rpc_dummy_work = NULL;
 static std::vector<CSubNet> rpc_allow_subnets; //!< List of subnets to allow RPC connections from
 static std::vector< boost::shared_ptr<ip::tcp::acceptor> > rpc_acceptors;
+
+
+/* HDAC START */
+class tcp_session
+  :private boost::noncopyable, public boost::enable_shared_from_this<tcp_session>
+{
+public:
+	tcp::socket socket_;
+ 	deadline_timer input_deadline_;
+ 	deadline_timer output_deadline_;
+  	AcceptedConnection *conn;
+
+ 	tcp_session(boost::asio::io_service& io_service)
+    : socket_(io_service),
+      input_deadline_(io_service),
+      output_deadline_(io_service)
+ 	{
+	  input_deadline_.expires_at(boost::posix_time::pos_infin);
+	  output_deadline_.expires_at(boost::posix_time::pos_infin);
+
+ 	};
+
+	tcp::socket& socket()
+	{
+		return socket_;
+	}
+
+	void stop()
+	{
+	   boost::system::error_code ignored_ec;
+	   socket_.close(ignored_ec);
+	   input_deadline_.cancel();
+	   output_deadline_.cancel();
+	}
+
+	bool stopped() const
+	{
+		return !socket_.is_open();
+	}
+
+ 	 void check_deadline(deadline_timer* deadline)
+	 {
+	   if (stopped())
+		 return;
+
+	   // Check whether the deadline has passed. We compare the deadline against
+	   // the current time since a new asynchronous operation may have moved the
+	   // deadline before this actor had a chance to run.
+	   if (deadline->expires_at() <= deadline_timer::traits_type::now())
+	   {
+		 // The deadline has passed. Stop the session. The other actors will
+		 // terminate as soon as possible.
+		   stop();
+	   }
+	   else
+	   {
+		 // Put the actor back to sleep.
+		 deadline->async_wait(
+			 boost::bind(&tcp_session::check_deadline,
+					 this, deadline));
+	   }
+	 };
+
+ 	void ServiceConnection(AcceptedConnection *conn); // HDAC
+
+};
+
+
+static tcp_session * tcpsession = NULL; // HDAC
+
+/* HDAC END */
 
 string JSONRPCRequestForLog(const string& strMethod, const Array& params, const Value& id)
 {
@@ -129,7 +210,6 @@ static inline int64_t roundint64(double d)
 CAmount AmountFromValue(const Value& value)
 {
     double dAmount = value.get_real();
-/* MCHN START */    
     if(COIN == 0)
     {
         if(dAmount != 0)
@@ -143,9 +223,6 @@ CAmount AmountFromValue(const Value& value)
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid amount");        
     }
     
-//    if (dAmount < 0.0 || dAmount > 21000000.0)                                  // MCHN - was <=
-//        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid amount");
-/* MCHN END */    
     CAmount nAmount = roundint64(dAmount * COIN);
     if (!MoneyRange(nAmount))
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid amount");
@@ -154,12 +231,10 @@ CAmount AmountFromValue(const Value& value)
 
 Value ValueFromAmount(const CAmount& amount)
 {
-/*  MCHN START */   
     if(COIN == 0)
     {
         return (double)amount;
     }
-/*  MCHN END */   
     return (double)amount / (double)COIN;
 }
 
@@ -224,7 +299,6 @@ string CRPCTable::help(string strCommand) const
             continue;
 #endif
 
-/* MCHN START */        
         string strHelp="";
         map<string, string>::iterator it = mapHelpStrings.find(strMethod);
         if (it == mapHelpStrings.end())
@@ -296,7 +370,7 @@ string CRPCTable::help(string strCommand) const
         }
  */ 
     }
-/* MCHN END */        
+
     if (strRet == "")
         strRet = strprintf("help: unknown command: %s\n", strCommand);
     strRet = strRet.substr(0,strRet.size()-1);
@@ -311,18 +385,18 @@ Value help(const Array& params, bool fHelp)
     string strCommand;
     if (params.size() > 0)
         strCommand = params[0].get_str();
-    
+
     if(strCommand.size())
     {
         if(setAllowedWhenLimited.size())
         {
             if( setAllowedWhenLimited.count(strCommand) == 0 )
             {
-                throw JSONRPCError(RPC_NOT_ALLOWED, "Method not allowed with current setting of -rpcallowmethod runtime parameter");                
-            }        
+                throw JSONRPCError(RPC_NOT_ALLOWED, "Method not allowed with current setting of -rpcallowmethod runtime parameter");
+            }
         }
     }
-    
+
     return tableRPC.help(strCommand);
 }
 
@@ -334,10 +408,8 @@ Value stop(const Array& params, bool fHelp)
         throw runtime_error("Help message not found\n");
     // Shutdown will take long enough that the response should get back
     StartShutdown();
-    return "MultiChain server stopping";
+    return "Hdac server stopping";	// HDAC
 }
-
-/* MCHN START */
 
 string AllowedPausedServices()
 {
@@ -368,8 +440,8 @@ uint32_t GetPausedServices(const char *str)
             if(ptr > start)
             {
                 type=0;
-                if(memcmp(start,"incoming",    ptr-start) == 0)type = MC_NPS_INCOMING;
-                if(memcmp(start,"mining",      ptr-start) == 0)type = MC_NPS_MINING;
+                if(memcmp(start,"incoming",  ptr-start) == 0)type = MC_NPS_INCOMING;
+                if(memcmp(start,"mining",    ptr-start) == 0)type = MC_NPS_MINING;
                 if(memcmp(start,"reaccepting", ptr-start) == 0)type = MC_NPS_REACCEPT;
                 
                 if(type == 0)
@@ -430,15 +502,13 @@ Value resumecmd(const Array& params, bool fHelp)
     
     if( type & MC_NPS_REACCEPT )
     {
-        pwalletMain->ReacceptWalletTransactions();                                                                                            
+        pwalletMain->ReacceptWalletTransactions();
     }
-    
+
     LogPrintf("Node paused state is set to %08X\n",mc_gState->m_NodePausedState);
     
     return "Resumed";
 }
-
-/* END */
 
 CRPCTable::CRPCTable()
 {
@@ -561,7 +631,7 @@ private:
     iostreams::stream< SSLIOStreamDevice<Protocol> > _stream;
 };
 
-void ServiceConnection(AcceptedConnection *conn);
+//void ServiceConnection(AcceptedConnection *conn); // HDAC - jhkim - move into the tcp_session class
 
 //! Forward declaration required for RPCListen
 template <typename Protocol, typename SocketAcceptorService>
@@ -624,10 +694,14 @@ static void RPCAcceptHandler(boost::shared_ptr< basic_socket_acceptor<Protocol, 
         if (!fUseSSL)
             conn->stream() << HTTPError(HTTP_FORBIDDEN, false) << std::flush;
         conn->close();
+        tcpsession->stop(); // HDAC - jhkim
     }
     else {
-        ServiceConnection(conn.get());
+         // ServiceConnection(conn.get());  // HDAC - jhkim
+    	  tcpsession->conn = conn.get();  // HDAC
+         tcpsession->ServiceConnection(conn.get()); // HDAC - jhkim
         conn->close();
+         tcpsession->stop(); // HDAC - jhkim
     }
 }
 
@@ -641,20 +715,21 @@ static ip::tcp::endpoint ParseEndpoint(const std::string &strEndpoint, int defau
 
 void mc_InitRPCListIfLimited()
 {
-    if (mapArgs.count("-rpcallowmethod")) 
+    if (mapArgs.count("-rpcallowmethod"))
     {
         setAllowedWhenLimited.insert("help");
-        BOOST_FOREACH(const std::string& methods, mapMultiArgs["-rpcallowmethod"]) 
+        BOOST_FOREACH(const std::string& methods, mapMultiArgs["-rpcallowmethod"])
         {
-            stringstream ss(methods); 
+            stringstream ss(methods);
             string tok;
-            while(getline(ss, tok, ',')) 
+            while(getline(ss, tok, ','))
             {
-                setAllowedWhenLimited.insert(tok);    
+                setAllowedWhenLimited.insert(tok);
             }
         }
     }
 }
+
 
 void StartRPCThreads()
 {
@@ -693,20 +768,22 @@ void StartRPCThreads()
     {
         unsigned char rand_pwd[32];
         GetRandBytes(rand_pwd, 32);
+
         uiInterface.ThreadSafeMessageBox(strprintf(
-            _("To use multichaind, you must set an rpcpassword in the configuration file:\n"
+            _("To use hdacd, you must set an rpcpassword in the configuration file:\n"
               "%s\n"
               "It is recommended you use the following random password:\n"
-              "rpcuser=multichainrpc\n"
+              "rpcuser=hdacrpc\n"
               "rpcpassword=%s\n"
               "(you do not need to remember this password)\n"
               "The username and password MUST NOT be the same.\n"
               "If the file does not exist, create it with owner-readable-only file permissions.\n"
               "It is also recommended to set alertnotify so you are notified of problems;\n"
-              "for example: alertnotify=echo %%s | mail -s \"MultiChain Alert\" admin@foo.com\n"),
+              "for example: alertnotify=echo %%s | mail -s \"Hdac Alert\" admin@foo.com\n"),
                 GetConfigFile().string(),
                 EncodeBase58(&rand_pwd[0],&rand_pwd[0]+32)),
                 "", CClientUIInterface::MSG_ERROR | CClientUIInterface::SECURE);
+
         StartShutdown();
         return;
     }
@@ -714,6 +791,8 @@ void StartRPCThreads()
     assert(rpc_io_service == NULL);
     rpc_io_service = new asio::io_service();
     rpc_ssl_context = new ssl::context(*rpc_io_service, ssl::context::sslv23);
+
+    tcpsession = new tcp_session(*rpc_io_service);  // HDAC - jhkim
 
     const bool fUseSSL = GetBoolArg("-rpcssl", false);
 
@@ -814,7 +893,8 @@ void StartRPCThreads()
     }
 
     rpc_worker_group = new boost::thread_group();
-    for (int i = 0; i < GetArg("-rpcthreads", 4); i++)
+
+    for (int i = 0; i < GetArg("-rpcthreads", 100); i++)
         rpc_worker_group->create_thread(boost::bind(&asio::io_service::run, rpc_io_service));
     
     fRPCRunning = true;
@@ -945,7 +1025,6 @@ void JSONRequest::parse(const Value& valRequest)
     if (strMethod != "getblocktemplate")
         if(fDebug)LogPrint("rpc", "ThreadRPCServer method=%s\n", SanitizeString(strMethod));
 
-/* MCHN START */    
     Value valChainName = find_value(request, "chain_name");
     if (valChainName.type() != null_type)
     {
@@ -954,7 +1033,7 @@ void JSONRequest::parse(const Value& valRequest)
         if (strcmp(valChainName.get_str().c_str(),mc_gState->m_Params->NetworkName()))
             throw JSONRPCError(RPC_INVALID_REQUEST, "Wrong chain name");
     }
-/* MCHN END */    
+
     // Parse params
     Value valParams = find_value(request, "params");
     if (valParams.type() == array_type)
@@ -971,9 +1050,8 @@ static Object JSONRPCExecOne(const Value& req)
     Object rpc_result;
 
     JSONRequest jreq;
-/* MCHN START */    
     uint32_t wallet_mode=mc_gState->m_WalletMode;
-/* MCHN END */    
+
     try {
         jreq.parse(req);
 
@@ -982,18 +1060,15 @@ static Object JSONRPCExecOne(const Value& req)
     }
     catch (Object& objError)
     {
-/* MCHN START */    
         mc_gState->m_WalletMode=wallet_mode;
         if(fDebug)LogPrint("mcapi","mcapi: API request failure A\n");        
-/* MCHN END */    
         rpc_result = JSONRPCReplyObj(Value::null, objError, jreq.id);
     }
     catch (std::exception& e)
     {
-/* MCHN START */    
         mc_gState->m_WalletMode=wallet_mode;
         if(fDebug)LogPrint("mcapi","mcapi: API request failure B\n");        
-/* MCHN END */    
+
         rpc_result = JSONRPCReplyObj(Value::null,
                                      JSONRPCError(RPC_PARSE_ERROR, e.what()), jreq.id);
     }
@@ -1035,10 +1110,9 @@ static bool HTTPReq_JSONRPC(AcceptedConnection *conn,
     }
 
     JSONRequest jreq;
-/* MCHN START */    
     uint32_t wallet_mode=mc_gState->m_WalletMode;
     if(fDebug)LogPrint("mcapi","mcapi: API request from %s\n",conn->peer_address_to_string().c_str());
-/* MCHN END */    
+
     try
     {
         // Parse request
@@ -1074,30 +1148,30 @@ static bool HTTPReq_JSONRPC(AcceptedConnection *conn,
     }
     catch (Object& objError)
     {
-/* MCHN START */    
         mc_gState->m_WalletMode=wallet_mode;
         if(fDebug)LogPrint("mcapi","mcapi: API request failure: %s, code: %d\n",jreq.strMethod.c_str(),find_value(objError, "code").get_int());
         
-//        if(fDebug)LogPrint("mcapi","mcapi: API request failure C\n");        
-/* MCHN END */    
         ErrorReply(conn->stream(), objError, jreq.id);
         return false;
     }
     catch (std::exception& e)
     {
-/* MCHN START */    
         mc_gState->m_WalletMode=wallet_mode;
         if(fDebug)LogPrint("mcapi","mcapi: API request failure D\n");        
-/* MCHN END */    
+
         ErrorReply(conn->stream(), JSONRPCError(RPC_PARSE_ERROR, e.what()), jreq.id);
         return false;
     }
     return true;
 }
 
-void ServiceConnection(AcceptedConnection *conn)
+
+void tcp_session::ServiceConnection(AcceptedConnection *conn)
 {
     bool fRun = true;
+
+    //tcp_session::conn = conn;	// HDAC
+
     while (fRun && !ShutdownRequested())
     {
         int nProto = 0;
@@ -1111,19 +1185,48 @@ void ServiceConnection(AcceptedConnection *conn)
         // Read HTTP message headers and body
         ReadHTTPMessage(conn->stream(), mapHeaders, strRequest, nProto, MAX_SIZE);
 
+        /* HDAC START */
+        input_deadline_.expires_from_now(boost::posix_time::seconds(DEFAULT_RPC_HTTP_SERVER_TIMEOUT));  // HDAC - add jhkim
+
+        input_deadline_.async_wait(
+            boost::bind(&tcp_session::check_deadline,
+            		this, &input_deadline_));
+        /* HDAC END */
+
         // HTTP Keep-Alive is false; close connection immediately
         if ((mapHeaders["connection"] == "close") || (!GetBoolArg("-rpckeepalive", false)))
             fRun = false;
 
         // Process via JSON-RPC API
         if (strURI == "/") {
-            if (!HTTPReq_JSONRPC(conn, strRequest, mapHeaders, fRun))
+            //if (!HTTPReq_JSONRPC(conn, strRequest, mapHeaders, fRun))  // HDAC - jhkim
+        		/* HDAC START */
+                bool ret = HTTPReq_JSONRPC(conn, strRequest, mapHeaders, fRun);
+                {
+               	output_deadline_.expires_from_now(boost::posix_time::seconds(DEFAULT_RPC_HTTP_SERVER_TIMEOUT));
+                	output_deadline_.async_wait(
+                    boost::bind(&tcp_session::check_deadline,
+                    this, &output_deadline_));
+                }
+                if(!ret)
                 break;
+               /* HDAC END */
+
 
         // Process via HTTP REST API
         } else if (strURI.substr(0, 6) == "/rest/" && GetBoolArg("-rest", false)) {
-            if (!HTTPReq_REST(conn, strURI, mapHeaders, fRun))
+            //if (!HTTPReq_REST(conn, strURI, mapHeaders, fRun))  // HDAC - jhkim
+        	/* HDAC START */
+            bool ret = HTTPReq_REST(conn, strURI, mapHeaders, fRun);
+            {
+           	output_deadline_.expires_from_now(boost::posix_time::seconds(DEFAULT_RPC_HTTP_SERVER_TIMEOUT));
+           	output_deadline_.async_wait(
+                boost::bind(&tcp_session::check_deadline,
+                this, &output_deadline_));
+            }
+           if(!ret)
                 break;
+           /* HDAC END */
 
         } else {
             conn->stream() << HTTPError(HTTP_NOT_FOUND, false) << std::flush;
@@ -1131,6 +1234,7 @@ void ServiceConnection(AcceptedConnection *conn)
         }
     }
 }
+
 
 json_spirit::Value CRPCTable::execute(const std::string &strMethod, const json_spirit::Array &params) const
 {
@@ -1144,7 +1248,7 @@ json_spirit::Value CRPCTable::execute(const std::string &strMethod, const json_s
         }
         else
         {
-            throw JSONRPCError(RPC_NOT_SUPPORTED, "Method not available in cold version of MultiChain");            
+            throw JSONRPCError(RPC_NOT_SUPPORTED, "Method not available in cold version of Hdac");            // HDAC
         }
     }
 #ifdef ENABLE_WALLET
@@ -1152,14 +1256,15 @@ json_spirit::Value CRPCTable::execute(const std::string &strMethod, const json_s
         throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Method not found (disabled)");
 #endif
 
-//    if(mc_gState->m_ProtocolVersionToUpgrade > mc_gState->m_NetworkParams->ProtocolVersion())
-    if( (mc_gState->m_ProtocolVersionToUpgrade > 0) && (mc_gState->IsSupported(mc_gState->m_ProtocolVersionToUpgrade) == 0) )
+    #if 0
+    if(mc_gState->m_ProtocolVersionToUpgrade > mc_gState->m_NetworkParams->ProtocolVersion())
     {
         if( setAllowedWhenWaitingForUpgrade.count(strMethod) == 0 )
         {
-            throw JSONRPCError(RPC_UPGRADE_REQUIRED, strprintf("BlockChain was upgraded to protocol version %d, please upgrade MultiChain",mc_gState->m_ProtocolVersionToUpgrade));
+            throw JSONRPCError(RPC_UPGRADE_REQUIRED, strprintf("BlockChain was upgraded to protocol version %d, please upgrade Hdac",mc_gState->m_ProtocolVersionToUpgrade));	// HDAC
         }
     }
+    #endif
     
     if(GetBoolArg("-offline",false))
     {
@@ -1173,8 +1278,8 @@ json_spirit::Value CRPCTable::execute(const std::string &strMethod, const json_s
     {
         if( setAllowedWhenLimited.count(strMethod) == 0 )
         {
-            throw JSONRPCError(RPC_NOT_ALLOWED, "Method not allowed with current setting of -rpcallowmethod runtime parameter");                
-        }        
+            throw JSONRPCError(RPC_NOT_ALLOWED, "Method not allowed with current setting of -rpcallowmethod runtime parameter");
+        }
     }
     
     // Observe safe mode
@@ -1202,7 +1307,6 @@ json_spirit::Value CRPCTable::execute(const std::string &strMethod, const json_s
                 result = pcmd->actor(params, false);
             } else {
                 LOCK2(cs_main, pwalletMain->cs_wallet);
-/* MCHN START */                
                 uint32_t wallet_mode=mc_gState->m_WalletMode;
                 string strResultNone;
                 string strResult;
@@ -1219,9 +1323,8 @@ json_spirit::Value CRPCTable::execute(const std::string &strMethod, const json_s
                         }
                     }
                 }                
-/* MCHN END */                
                 result = pcmd->actor(params, false);
-/* MCHN START */ 
+
                 if(LogAcceptCategory("walletcompare"))
                 {
                     if(wallet_mode & MC_WMD_MAP_TXS)
@@ -1242,9 +1345,7 @@ json_spirit::Value CRPCTable::execute(const std::string &strMethod, const json_s
                             }
                         }
                     }
-                }
-/* MCHN END */                
-                
+                }                
             }
 #else // ENABLE_WALLET
             else {
@@ -1253,9 +1354,9 @@ json_spirit::Value CRPCTable::execute(const std::string &strMethod, const json_s
             }
 #endif // !ENABLE_WALLET
         }
-/* MCHN START */        
+
         if(fDebug)LogPrint("mcapi","mcapi: API request successful: %s\n",strMethod.c_str());
-/* MCHN END */        
+
         return result;
     }
     catch (std::exception& e)
@@ -1270,12 +1371,12 @@ json_spirit::Value CRPCTable::execute(const std::string &strMethod, const json_s
 }
 
 std::string HelpExampleCli(string methodname, string args){
-    return "> multichain-cli " + std::string(mc_gState->m_NetworkParams->Name()) + " " + methodname + " " + args + "\n";
+    return "> hdac-cli " + std::string(mc_gState->m_NetworkParams->Name()) + " " + methodname + " " + args + "\n";	// HDAC
 }
 
 std::string HelpExampleRpc(string methodname, string args){
     return "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", "
-        "\"method\": \"" + methodname + "\", \"params\": [" + args + "] }' -H 'content-type: text/plain;' http://127.0.0.1:"+
+    		"\"method\": \"" + methodname + "\", \"params\": [" + args + "] }' -H 'content-type: text/plain;' http://127.0.0.1:"+
             strprintf("%d",(int)mc_gState->m_NetworkParams->GetInt64Param("defaultrpcport")) + "\n";// MCHN was hard-coded 8332 before
 }
 

@@ -10,12 +10,8 @@
 
 string AllowedPermissions()
 {
-    string ret="connect,send,receive,issue,mine,admin,activate";
-    if(mc_gState->m_Features->Streams())
-    {
-        ret += ",create";
-    }
-    
+    string ret="connect,send,receive,issue,mine,admin,activate,create";
+
     return ret;
 }
 
@@ -114,11 +110,10 @@ Value grantoperation(const Array& params)
     if (entity_identifier.size())
     {        
         ParseEntityIdentifier(entity_identifier,&entity, MC_ENT_TYPE_ANY);           
-        LogPrintf("mchn: Granting %s permission(s) to address %s (%ld-%ld), Entity TxID: %s, Name: %s\n",permission_type,params[1].get_str(),from,to,
+        LogPrintf("hdac: Granting %s permission(s) to address %s (%ld-%ld), Entity TxID: %s, Name: %s\n",permission_type,params[1].get_str(),from,to,
                 ((uint256*)entity.GetTxID())->ToString().c_str(),entity.GetName());
         
-//        type=mc_gState->m_Permissions->GetPermissionType(permission_type.c_str(),entity.GetEntityType());
-        type=mc_gState->m_Permissions->GetPermissionType(permission_type.c_str(),&entity);
+        type=mc_gState->m_Permissions->GetPermissionType(permission_type.c_str(),entity.GetEntityType());
         
         if(type == 0)
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid permission");
@@ -127,13 +122,12 @@ Value grantoperation(const Array& params)
     }
     else
     {
-        type=mc_gState->m_Permissions->GetPermissionType(permission_type.c_str(),&entity);
-//        type=mc_gState->m_Permissions->GetPermissionType(permission_type.c_str(),MC_ENT_TYPE_NONE);
+        type=mc_gState->m_Permissions->GetPermissionType(permission_type.c_str(),MC_ENT_TYPE_NONE);
         
         if(type == 0)
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid permission");
         
-        LogPrintf("mchn: Granting %s permission(s) to address %s (%ld-%ld)\n",permission_type,params[1].get_str(),from,to);
+        LogPrintf("hdac: Granting %s permission(s) to address %s (%ld-%ld)\n",permission_type,params[1].get_str(),from,to);
     }
     
     
@@ -156,7 +150,7 @@ Value grantoperation(const Array& params)
     CScript scriptOpReturn=CScript();
     if (params.size() > 3)
     {
-        scriptOpReturn=ParseRawMetadata(params[3],MC_DATA_API_PARAM_TYPE_SIMPLE,NULL,&found_entity);
+        scriptOpReturn=ParseRawMetadata(params[3],0x0002,NULL,&found_entity);
     }
     
     if(fromaddresses.size() == 1)
@@ -473,8 +467,7 @@ Value listpermissions(const Array& params, bool fHelp)
         lpEntity=entity.GetTxID();
     }
     
-//    type=mc_gState->m_Permissions->GetPermissionType(permission_type.c_str(),entity.GetEntityType());
-    type=mc_gState->m_Permissions->GetPermissionType(permission_type.c_str(),&entity);
+    type=mc_gState->m_Permissions->GetPermissionType(permission_type.c_str(),entity.GetEntityType());
     if(type == 0)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid permission");
     
@@ -514,7 +507,7 @@ Value listpermissions(const Array& params, bool fHelp)
             if(((lpKeyID == NULL) && (lpScriptID == NULL)))
             {
                 mc_gState->m_Permissions->FreePermissionList(permissions);
-                LogPrintf("mchn: Invalid address");
+                LogPrintf("hdac: Invalid address");
                 return false;                
             }
             
@@ -581,7 +574,9 @@ Value listpermissions(const Array& params, bool fHelp)
             case MC_PTP_ISSUE  :entry.push_back(Pair("type", "issue"));break;
             case MC_PTP_MINE   :entry.push_back(Pair("type", "mine"));break;
             case MC_PTP_ADMIN  :entry.push_back(Pair("type", "admin"));break;
-            case MC_PTP_ACTIVATE  :entry.push_back(Pair("type", "activate"));break;                
+            case MC_PTP_ACTIVATE  :entry.push_back(Pair("type", "activate"));break;
+            case MC_PTP_BANNED :entry.push_back(Pair("type", "banned"));break;
+            
             default:take_it=false;
         }
         entry.push_back(Pair("startblock", (int64_t)plsRow->m_BlockFrom));

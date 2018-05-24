@@ -11,7 +11,13 @@
 #include "primitives/block.h"
 #include "structs/uint256.h"
 #include "utils/util.h"
-
+/* HDAC START */
+/*
+#include "core/main.h"
+#include <iostream>
+using namespace std;
+*/
+/* HDAC END */
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock)
 {
     unsigned int nProofOfWorkLimit = Params().ProofOfWorkLimit().GetCompact();
@@ -106,6 +112,15 @@ bool CheckProofOfWork(uint256 hash, unsigned int nBits,bool fNoErrorInLog)
         }
         else
         {
+        	/* HDAC START */
+        	/*
+        	std::cout << "HDAC hash      : " << hash.ToString() << std::endl;
+        	std::cout << "HDAC hash(Hex) : " << hash.GetHex() << std::endl;
+        	std::cout << "HDAC hahs : " << HexStr(hash.ToString()) << std::endl;
+        	std::cout << "HDAC target    : " << bnTarget.ToString() << std::endl;
+        	*/
+        	/* HDAC END */
+
             return error("CheckProofOfWork() : hash doesn't match nBits");            
         }
     }

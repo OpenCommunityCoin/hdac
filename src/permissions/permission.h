@@ -1,8 +1,8 @@
 // Copyright (c) 2014-2017 Coin Sciences Ltd
 // MultiChain code distributed under the GPLv3 license, see COPYING file.
 
-#ifndef MULTICHAIN_PERMISSION_H
-#define	MULTICHAIN_PERMISSION_H
+#ifndef __PERMISSION_H_
+#define	__PERMISSION_H_
 
 #include "utils/declare.h"
 #include "utils/dbwrapper.h"
@@ -17,6 +17,8 @@
 #define MC_PTP_ADMIN            0x00001000
 #define MC_PTP_ACTIVATE         0x00002000
 #define MC_PTP_UPGRADE          0x00010000
+#define MC_PTP_BANNED           0x00100000
+
 #define MC_PTP_BLOCK_MINER      0x01000000
 #define MC_PTP_BLOCK_INDEX      0x02000000
 #define MC_PTP_ALL              0x00FFFFFF
@@ -290,11 +292,8 @@ typedef struct mc_Permissions
     int RollBackToCheckPoint();
     
     uint32_t GetAllPermissions(const void* lpEntity,const void* lpAddress,uint32_t type);
-    uint32_t GetPermissionType(const char *str,uint32_t full_type);
-//    uint32_t GetPermissionType(const char *str,int entity_type);
-    uint32_t GetPermissionType(const char *str,const void *entity_details);
+    uint32_t GetPermissionType(const char *str,int entity_type);
     uint32_t GetPossiblePermissionTypes(uint32_t entity_type);
-    uint32_t GetPossiblePermissionTypes(const void *entity_details);
     
     int GetAdminCount();
     int GetMinerCount();
@@ -316,6 +315,8 @@ typedef struct mc_Permissions
     int CanActivate(const void* lpEntity,const void* lpAddress);    
     
     int CanMineBlock(const void* lpAddress,uint32_t block);
+
+    int IsBanned(const void* lpEntity,const void* lpAddress);
     
     int IsActivateEnough(uint32_t type);
     
@@ -384,5 +385,5 @@ typedef struct mc_Permissions
 
 
 
-#endif	/* MULTICHAIN_PERMISSION_H */
+#endif	/* __PERMISSION_H_ */
 
